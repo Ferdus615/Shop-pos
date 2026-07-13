@@ -1,0 +1,29 @@
+# compiled output
+/dist
+/node_modules
+/build
+
+# logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# environment / secrets
+.env
+.env.*.local
+
+# OS / editor
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# tests
+/coverage
+.eslintcache
+
+# TypeScript build info
+*.tsbuildinfo
