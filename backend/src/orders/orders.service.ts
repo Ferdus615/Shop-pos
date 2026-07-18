@@ -110,6 +110,7 @@ export class OrdersService {
     const countToday = await manager.count(Order, {
       where: { createdAt: Between(start, end) },
     });
+
     const seq = String(countToday + 1).padStart(4, '0');
     return `ORD-${formatDay(now).replace(/-/g, '')}-${seq}`;
   }

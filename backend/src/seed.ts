@@ -30,20 +30,3 @@ export async function runSeeder(app: INestApplicationContext) {
 
   console.log(`Created owner account: ${email}`);
 }
-
-async function seed() {
-  const app = await NestFactory.createApplicationContext(AppModule, {
-    logger: ['error', 'warn'],
-  });
-
-  try {
-    await runSeeder(app);
-  } finally {
-    await app.close();
-  }
-}
-
-seed().catch((error) => {
-  console.error('Seed failed:', error);
-  process.exit(1);
-});
