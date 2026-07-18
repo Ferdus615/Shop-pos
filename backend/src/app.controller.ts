@@ -11,4 +11,10 @@ export class AppController {
   health() {
     return { status: 'ok', service: 'shop-pos-backend' };
   }
+
+  @Public()
+  @Get()
+  getHello() {
+    return `MERS POS is running...`;
+  }
 }
