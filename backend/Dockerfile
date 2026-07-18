@@ -17,4 +17,4 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 # CMD ["node", "dist/main"]
-CMD ["npm", "run", "seed"]
+CMD ["npm", "run", "seed:prod"]
