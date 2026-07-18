@@ -11,10 +11,12 @@ FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
 # Only install dependencies needed to run (saves space and makes it faster)
-RUN npm ci --only=production
+# RUN npm ci --only=production
+RUN npm ci 
 # Copy the compiled Javascript code from Step 1
-COPY --from=builder /app/dist ./dist
+# COPY --from=builder /app/dist ./dist
+COPY . .
 
 EXPOSE 3000
-# CMD ["node", "dist/main"]
-CMD ["npm", "run", "seed:prod"]
+CMD ["node", "dist/main"]
+# CMD ["npm", "run", "seed:prod"]
