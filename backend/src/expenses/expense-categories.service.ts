@@ -50,7 +50,9 @@ export class ExpenseCategoriesService {
         where: { name: dto.name },
       });
       if (existing) {
-        throw new ConflictException('An expense category with this name exists');
+        throw new ConflictException(
+          'An expense category with this name exists',
+        );
       }
       category.name = dto.name;
     }

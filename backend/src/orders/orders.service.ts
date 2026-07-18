@@ -104,9 +104,7 @@ export class OrdersService {
   }
 
   /** Sequential, date-prefixed number. Unique constraint guards against races. */
-  private async generateOrderNumber(
-    manager: EntityManager,
-  ): Promise<string> {
+  private async generateOrderNumber(manager: EntityManager): Promise<string> {
     const now = new Date();
     const { start, end } = parseDayRange(formatDay(now));
     const countToday = await manager.count(Order, {
@@ -195,11 +193,13 @@ export class OrdersService {
       .limit(5)
       .getRawMany<{ name: string; quantitySold: string; revenue: string }>();
 
-    const byPaymentMethod: PaymentMethodBreakdown[] = paymentRows.map((row) => ({
-      paymentMethod: row.paymentMethod,
-      orderCount: Number(row.orderCount),
-      total: round2(Number(row.total)),
-    }));
+    const byPaymentMethod: PaymentMethodBreakdown[] = paymentRows.map(
+      (row) => ({
+        paymentMethod: row.paymentMethod,
+        orderCount: Number(row.orderCount),
+        total: round2(Number(row.total)),
+      }),
+    );
 
     const topItems: TopSellingItem[] = topRows.map((row) => ({
       name: row.name,

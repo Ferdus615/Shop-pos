@@ -32,10 +32,7 @@ export class MenuCategoriesService {
     return category;
   }
 
-  async update(
-    id: string,
-    dto: UpdateMenuCategoryDto,
-  ): Promise<MenuCategory> {
+  async update(id: string, dto: UpdateMenuCategoryDto): Promise<MenuCategory> {
     const category = await this.findOne(id);
     Object.assign(category, dto);
     return this.categoriesRepository.save(category);

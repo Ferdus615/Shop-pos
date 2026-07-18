@@ -32,7 +32,7 @@ export class OrdersController {
   // Daily sales summary: owner only. Declared before ':id' to avoid clashing.
   @Get('summary')
   @Roles(Role.OWNER)
-  @ApiOperation({ summary: "Daily sales summary (defaults to today)" })
+  @ApiOperation({ summary: 'Daily sales summary (defaults to today)' })
   getSummary(@Query() query: SalesSummaryQueryDto) {
     return this.ordersService.getSalesSummary(query.date);
   }

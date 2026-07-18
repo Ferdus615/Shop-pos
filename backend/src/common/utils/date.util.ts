@@ -47,13 +47,19 @@ export function parseDayRange(day?: string): DayRange {
     base.getFullYear(),
     base.getMonth(),
     base.getDate(),
-    0, 0, 0, 0,
+    0,
+    0,
+    0,
+    0,
   );
   const end = new Date(
     base.getFullYear(),
     base.getMonth(),
     base.getDate(),
-    23, 59, 59, 999,
+    23,
+    59,
+    59,
+    999,
   );
   return { start, end, day: formatDay(start) };
 }

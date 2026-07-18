@@ -22,9 +22,7 @@ import { ExpenseCategoriesService } from './expense-categories.service';
 @Roles(Role.OWNER)
 @Controller('expenses/categories')
 export class ExpenseCategoriesController {
-  constructor(
-    private readonly categoriesService: ExpenseCategoriesService,
-  ) {}
+  constructor(private readonly categoriesService: ExpenseCategoriesService) {}
 
   @Post()
   create(@Body() dto: CreateExpenseCategoryDto) {

@@ -14,7 +14,8 @@ export class DashboardController {
 
   @Get()
   @ApiOperation({
-    summary: 'Owner dashboard: today\'s sales + month-to-date sales/expenses/net',
+    summary:
+      "Owner dashboard: today's sales + month-to-date sales/expenses/net",
   })
   getOverview(@Query() query: DashboardQueryDto) {
     return this.dashboardService.getOverview(query.date);

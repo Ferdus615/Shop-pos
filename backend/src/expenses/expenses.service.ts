@@ -7,11 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Between, FindOptionsWhere, Repository } from 'typeorm';
 import { ExpenseCategory } from './entities/expense-category.entity';
 import { Expense } from './entities/expense.entity';
-import {
-  formatDay,
-  parseMonthRange,
-  round2,
-} from '../common/utils/date.util';
+import { formatDay, parseMonthRange, round2 } from '../common/utils/date.util';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { QueryExpensesDto } from './dto/query-expenses.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
@@ -32,7 +28,9 @@ export class ExpensesService {
   private async assertCategoryExists(categoryId: string): Promise<void> {
     const exists = await this.categoriesRepository.existsBy({ id: categoryId });
     if (!exists) {
-      throw new BadRequestException('Referenced expense category does not exist');
+      throw new BadRequestException(
+        'Referenced expense category does not exist',
+      );
     }
   }
 
