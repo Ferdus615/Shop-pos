@@ -1,7 +1,5 @@
 import 'reflect-metadata';
 import 'dotenv/config';
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 import { Role } from './common/enums/role.enum';
 import { UsersService } from './users/users.service';
 
