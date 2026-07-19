@@ -155,6 +155,18 @@ export class OrdersService {
     return this.ordersRepository.save(order);
   }
 
+  async refund(id: string): Promise<Order> {
+    const order = await this.findOne(id);
+    if (order.status === OrderStatus.REFUNDED) {
+      throw new BadRequestException('Order is already refunded');
+    }
+    if (order.status === OrderStatus.VOIDED) {
+      throw new BadRequestException('Cannot refund a voided order');
+    }
+    order.status = OrderStatus.REFUNDED;
+    return this.ordersRepository.save(order);
+  }
+
   /** Daily sales summary. Defaults to today when no date is supplied. */
   async getSalesSummary(date?: string): Promise<SalesSummary> {
     const { start, end, day } = parseDayRange(date);

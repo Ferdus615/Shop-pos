@@ -54,4 +54,11 @@ export class OrdersController {
   void(@Param('id', ParseUUIDPipe) id: string) {
     return this.ordersService.void(id);
   }
+
+  @Post(':id/refund')
+  @Roles(Role.OWNER)
+  @ApiOperation({ summary: 'Refund an order (owner only)' })
+  refund(@Param('id', ParseUUIDPipe) id: string) {
+    return this.ordersService.refund(id);
+  }
 }
