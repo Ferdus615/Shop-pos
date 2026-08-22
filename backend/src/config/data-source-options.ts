@@ -8,14 +8,27 @@ import { DataSourceOptions } from 'typeorm';
  */
 export function buildDataSourceOptions(): DataSourceOptions {
   const isProduction = process.env.NODE_ENV === 'production';
+  const databaseUrl = process.env.DATABASE_URL;
+
+  // Neon (and most cloud Postgres) requires SSL
+  const useSsl =
+    databaseUrl?.includes('neon.tech') ||
+    databaseUrl?.includes('sslmode=require') ||
+    process.env.DB_SSL === 'true';
 
   return {
     type: 'postgres',
-    host: process.env.DB_HOST ?? 'localhost',
-    port: parseInt(process.env.DB_PORT ?? '5432', 10),
-    username: process.env.DB_USERNAME ?? 'postgres',
-    password: process.env.DB_PASSWORD ?? 'postgres',
-    database: process.env.DB_DATABASE ?? 'shop_pos',
+    // Prefer a single connection string; fall back to individual vars
+    ...(databaseUrl
+      ? { url: databaseUrl }
+      : {
+          host: process.env.DB_HOST ?? 'localhost',
+          port: parseInt(process.env.DB_PORT ?? '5432', 10),
+          username: process.env.DB_USERNAME ?? 'postgres',
+          password: process.env.DB_PASSWORD ?? 'postgres',
+          database: process.env.DB_DATABASE ?? 'shop_pos',
+        }),
+    ssl: useSsl ? { rejectUnauthorized: false } : false,
     // Glob picks up every *.entity.ts (dev) / *.entity.js (built) file.
     entities: [join(__dirname, '..', '**', '*.entity.{ts,js}')],
     migrations: [join(__dirname, '..', 'migrations', '*.{ts,js}')],

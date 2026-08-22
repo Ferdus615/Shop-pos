@@ -11,7 +11,7 @@ NestJS + PostgreSQL (TypeORM) backend for a shop point-of-sale system:
 ## Requirements
 
 - Node 20+ (built on Node 24)
-- Docker (for the Postgres container) — or any reachable PostgreSQL 14+
+- A [Neon](https://neon.tech) PostgreSQL database (free tier available)
 
 ## Quick start
 
@@ -19,16 +19,15 @@ NestJS + PostgreSQL (TypeORM) backend for a shop point-of-sale system:
 # 1. Install
 npm install
 
-# 2. Configure — copy the example and adjust if needed
+# 2. Configure — copy the example and paste your Neon connection string
 cp .env.example .env
+# Edit .env → replace the DATABASE_URL with your Neon connection string
+# (Neon Dashboard → Connection Details → copy the connection string)
 
-# 3. Start PostgreSQL (maps container 5432 -> host 5433 by default)
-docker compose up -d
-
-# 4. Create the schema + first owner account
+# 3. Create the schema + first owner account
 npm run seed
 
-# 5. Run in watch mode
+# 4. Run in watch mode
 npm run start:dev
 ```
 
@@ -92,5 +91,4 @@ npm run migration:revert
 | `npm run build`          | Compile to `dist/`                   |
 | `npm run seed`           | Sync schema + create owner account   |
 | `npm test`               | Unit tests                           |
-| `docker compose up -d`   | Start PostgreSQL                     |
-| `docker compose down`    | Stop PostgreSQL (data volume kept)   |
+
