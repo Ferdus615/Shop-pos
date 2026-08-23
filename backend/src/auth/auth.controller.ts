@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { NoShopRequired } from '../common/decorators/no-shop-required.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import type { JwtPayloadUser } from '../common/interfaces/jwt-payload-user.interface';
 import { AuthService } from './auth.service';
@@ -27,6 +28,7 @@ export class AuthController {
   }
 
   @Get('me')
+  @NoShopRequired()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get the currently authenticated user' })
   me(@CurrentUser() user: JwtPayloadUser) {

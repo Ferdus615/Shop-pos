@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { NO_SHOP_REQUIRED_KEY } from '../decorators/no-shop-required.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { Role } from '../enums/role.enum';
@@ -19,10 +20,14 @@ function buildContext(user?: Partial<JwtPayloadUser>): ExecutionContext {
 function buildReflector(metadata: {
   isPublic?: boolean;
   roles?: Role[];
+  noShopRequired?: boolean;
 }): Reflector {
   return {
-    getAllAndOverride: (key: string) =>
-      key === IS_PUBLIC_KEY ? metadata.isPublic : metadata.roles,
+    getAllAndOverride: (key: string) => {
+      if (key === IS_PUBLIC_KEY) return metadata.isPublic;
+      if (key === NO_SHOP_REQUIRED_KEY) return metadata.noShopRequired;
+      return metadata.roles;
+    },
   } as unknown as Reflector;
 }
 
@@ -59,6 +64,17 @@ describe('ShopContextGuard', () => {
   it('allows a platform admin on a platform route', () => {
     const guard = new ShopContextGuard(
       buildReflector({ roles: [Role.SUPER_ADMIN] }),
+    );
+    const admin = shopUser({ role: Role.SUPER_ADMIN, shopId: null });
+    expect(guard.canActivate(buildContext(admin))).toBe(true);
+  });
+
+  // Regression: without this, a platform admin got 403 from GET /auth/me and
+  // the frontend could not restore their session — every refresh bounced them
+  // back to the login page.
+  it('lets a platform admin call an identity route that needs no shop', () => {
+    const guard = new ShopContextGuard(
+      buildReflector({ noShopRequired: true }),
     );
     const admin = shopUser({ role: Role.SUPER_ADMIN, shopId: null });
     expect(guard.canActivate(buildContext(admin))).toBe(true);

@@ -5,6 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { NO_SHOP_REQUIRED_KEY } from '../decorators/no-shop-required.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { Role } from '../enums/role.enum';
@@ -29,6 +30,15 @@ export class ShopContextGuard implements CanActivate {
       context.getClass(),
     ]);
     if (isPublic) {
+      return true;
+    }
+
+    // Identity routes (GET /auth/me) serve users who have no shop at all.
+    const noShopRequired = this.reflector.getAllAndOverride<boolean>(
+      NO_SHOP_REQUIRED_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    if (noShopRequired) {
       return true;
     }
 
