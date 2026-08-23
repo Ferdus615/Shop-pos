@@ -2,18 +2,28 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { decimalTransformer } from '../../common/transformers/decimal.transformer';
+import { Shop } from '../../shops/entities/shop.entity';
 import { MenuCategory } from './menu-category.entity';
 
 @Entity('menu_items')
 export class MenuItem {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @ManyToOne(() => Shop, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'shop_id' })
+  shop: Shop;
+
+  @Index()
+  @Column({ name: 'shop_id', type: 'uuid' })
+  shopId: string;
 
   @Column()
   name: string;

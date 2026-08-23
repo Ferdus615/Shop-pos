@@ -12,6 +12,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentShop } from '../common/decorators/current-shop.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
@@ -27,20 +28,23 @@ export class MenuItemsController {
 
   // Reads: any authenticated user (owner + staff).
   @Get()
-  findAll(@Query() query: QueryMenuItemDto) {
-    return this.itemsService.findAll(query);
+  findAll(@Query() query: QueryMenuItemDto, @CurrentShop() shopId: string) {
+    return this.itemsService.findAll(query, shopId);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.itemsService.findOne(id);
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentShop() shopId: string,
+  ) {
+    return this.itemsService.findOne(id, shopId);
   }
 
   // Mutations: owner only.
   @Post()
   @Roles(Role.OWNER)
-  create(@Body() dto: CreateMenuItemDto) {
-    return this.itemsService.create(dto);
+  create(@Body() dto: CreateMenuItemDto, @CurrentShop() shopId: string) {
+    return this.itemsService.create(dto, shopId);
   }
 
   @Patch(':id')
@@ -48,14 +52,18 @@ export class MenuItemsController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateMenuItemDto,
+    @CurrentShop() shopId: string,
   ) {
-    return this.itemsService.update(id, dto);
+    return this.itemsService.update(id, dto, shopId);
   }
 
   @Delete(':id')
   @Roles(Role.OWNER)
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.itemsService.remove(id);
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentShop() shopId: string,
+  ) {
+    return this.itemsService.remove(id, shopId);
   }
 }

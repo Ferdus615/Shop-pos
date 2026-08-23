@@ -12,15 +12,26 @@ import {
 import { OrderStatus } from '../../common/enums/order-status.enum';
 import { PaymentMethod } from '../../common/enums/payment-method.enum';
 import { decimalTransformer } from '../../common/transformers/decimal.transformer';
+import { Shop } from '../../shops/entities/shop.entity';
 import { User } from '../../users/entities/user.entity';
 import { OrderItem } from './order-item.entity';
 
+// Order numbers restart per shop, so they are only unique within one.
+@Index(['shopId', 'orderNumber'], { unique: true })
 @Entity('orders')
 export class Order {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'order_number', unique: true })
+  @ManyToOne(() => Shop, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'shop_id' })
+  shop: Shop;
+
+  @Index()
+  @Column({ name: 'shop_id', type: 'uuid' })
+  shopId: string;
+
+  @Column({ name: 'order_number' })
   orderNumber: string;
 
   @Column({

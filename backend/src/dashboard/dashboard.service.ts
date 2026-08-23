@@ -14,15 +14,15 @@ export class DashboardService {
    * At-a-glance snapshot: the day's sales plus the month-to-date sales,
    * expenses and net profit.
    */
-  async getOverview(date?: string) {
+  async getOverview(shopId: string, date?: string) {
     const { start, day } = parseDayRange(date);
     const month = formatMonth(start);
 
     const [todaySales, monthlySalesTotal, monthlyExpenseSummary] =
       await Promise.all([
-        this.ordersService.getSalesSummary(day),
-        this.ordersService.getMonthlySalesTotal(month),
-        this.expensesService.getMonthlySummary(month),
+        this.ordersService.getSalesSummary(shopId, day),
+        this.ordersService.getMonthlySalesTotal(shopId, month),
+        this.expensesService.getMonthlySummary(shopId, month),
       ]);
 
     const netProfit = round2(

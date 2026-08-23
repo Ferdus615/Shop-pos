@@ -16,24 +16,33 @@ export class ExpenseCategoriesService {
     private readonly categoriesRepository: Repository<ExpenseCategory>,
   ) {}
 
-  async create(dto: CreateExpenseCategoryDto): Promise<ExpenseCategory> {
+  async create(
+    dto: CreateExpenseCategoryDto,
+    shopId: string,
+  ): Promise<ExpenseCategory> {
+    // Names only have to be unique within the shop.
     const existing = await this.categoriesRepository.findOne({
-      where: { name: dto.name },
+      where: { name: dto.name, shopId },
     });
     if (existing) {
       throw new ConflictException('An expense category with this name exists');
     }
     return this.categoriesRepository.save(
-      this.categoriesRepository.create({ name: dto.name }),
+      this.categoriesRepository.create({ name: dto.name, shopId }),
     );
   }
 
-  findAll(): Promise<ExpenseCategory[]> {
-    return this.categoriesRepository.find({ order: { name: 'ASC' } });
+  findAll(shopId: string): Promise<ExpenseCategory[]> {
+    return this.categoriesRepository.find({
+      where: { shopId },
+      order: { name: 'ASC' },
+    });
   }
 
-  async findOne(id: string): Promise<ExpenseCategory> {
-    const category = await this.categoriesRepository.findOne({ where: { id } });
+  async findOne(id: string, shopId: string): Promise<ExpenseCategory> {
+    const category = await this.categoriesRepository.findOne({
+      where: { id, shopId },
+    });
     if (!category) {
       throw new NotFoundException('Expense category not found');
     }
@@ -43,11 +52,12 @@ export class ExpenseCategoriesService {
   async update(
     id: string,
     dto: UpdateExpenseCategoryDto,
+    shopId: string,
   ): Promise<ExpenseCategory> {
-    const category = await this.findOne(id);
+    const category = await this.findOne(id, shopId);
     if (dto.name && dto.name !== category.name) {
       const existing = await this.categoriesRepository.findOne({
-        where: { name: dto.name },
+        where: { name: dto.name, shopId },
       });
       if (existing) {
         throw new ConflictException(
@@ -59,8 +69,8 @@ export class ExpenseCategoriesService {
     return this.categoriesRepository.save(category);
   }
 
-  async remove(id: string): Promise<void> {
-    const category = await this.findOne(id);
+  async remove(id: string, shopId: string): Promise<void> {
+    const category = await this.findOne(id, shopId);
     await this.categoriesRepository.remove(category);
   }
 }

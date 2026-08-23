@@ -12,6 +12,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentShop } from '../common/decorators/current-shop.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
@@ -31,37 +32,51 @@ export class ExpensesController {
   // Declared before ':id' so it is not captured by the param route.
   @Get('summary')
   @ApiOperation({ summary: 'Monthly expense summary (defaults to this month)' })
-  getSummary(@Query() query: ExpenseSummaryQueryDto) {
-    return this.expensesService.getMonthlySummary(query.month);
+  getSummary(
+    @Query() query: ExpenseSummaryQueryDto,
+    @CurrentShop() shopId: string,
+  ) {
+    return this.expensesService.getMonthlySummary(shopId, query.month);
   }
 
   @Post()
-  create(@Body() dto: CreateExpenseDto, @CurrentUser('id') userId: string) {
-    return this.expensesService.create(dto, userId);
+  create(
+    @Body() dto: CreateExpenseDto,
+    @CurrentUser('id') userId: string,
+    @CurrentShop() shopId: string,
+  ) {
+    return this.expensesService.create(dto, userId, shopId);
   }
 
   @Get()
   @ApiOperation({ summary: 'List expenses (defaults to the current month)' })
-  findAll(@Query() query: QueryExpensesDto) {
-    return this.expensesService.findAll(query);
+  findAll(@Query() query: QueryExpensesDto, @CurrentShop() shopId: string) {
+    return this.expensesService.findAll(query, shopId);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.expensesService.findOne(id);
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentShop() shopId: string,
+  ) {
+    return this.expensesService.findOne(id, shopId);
   }
 
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateExpenseDto,
+    @CurrentShop() shopId: string,
   ) {
-    return this.expensesService.update(id, dto);
+    return this.expensesService.update(id, dto, shopId);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.expensesService.remove(id);
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentShop() shopId: string,
+  ) {
+    return this.expensesService.remove(id, shopId);
   }
 }

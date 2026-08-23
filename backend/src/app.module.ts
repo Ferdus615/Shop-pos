@@ -7,11 +7,13 @@ import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { ShopContextGuard } from './common/guards/shop-context.guard';
 import { buildDataSourceOptions } from './config/data-source-options';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
+import { ShopsModule } from './shops/shops.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -23,6 +25,7 @@ import { UsersModule } from './users/users.module';
         autoLoadEntities: true,
       }),
     }),
+    ShopsModule,
     UsersModule,
     AuthModule,
     MenuModule,
@@ -34,8 +37,10 @@ import { UsersModule } from './users/users.module';
   providers: [
     // Global JWT authentication (skipped on @Public routes)...
     { provide: APP_GUARD, useClass: JwtAuthGuard },
-    // ...then role-based authorization.
+    // ...then role-based authorization...
     { provide: APP_GUARD, useClass: RolesGuard },
+    // ...and finally: no handler runs without a tenant to scope it to.
+    { provide: APP_GUARD, useClass: ShopContextGuard },
     // Strip @Exclude()'d fields (e.g. password hash) from all responses.
     { provide: APP_INTERCEPTOR, useClass: ClassSerializerInterceptor },
   ],

@@ -53,7 +53,9 @@ describe('date.util (Asia/Dhaka boundaries, server-TZ independent)', () => {
   describe('formatDay', () => {
     it('reports the Dhaka calendar day, not the UTC day', () => {
       // 20:00Z is 02:00 the next day in Dhaka.
-      expect(formatDay(new Date('2026-07-19T20:00:00.000Z'))).toBe('2026-07-20');
+      expect(formatDay(new Date('2026-07-19T20:00:00.000Z'))).toBe(
+        '2026-07-20',
+      );
     });
   });
 });

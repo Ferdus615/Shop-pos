@@ -32,7 +32,11 @@ export class OrdersService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async create(dto: CreateOrderDto, userId: string | null): Promise<Order> {
+  async create(
+    dto: CreateOrderDto,
+    userId: string | null,
+    shopId: string,
+  ): Promise<Order> {
     // Collapse duplicate line entries for the same item into one line.
     const quantityByItem = new Map<string, number>();
     for (const line of dto.items) {
@@ -44,8 +48,11 @@ export class OrdersService {
     const menuItemIds = [...quantityByItem.keys()];
 
     return this.dataSource.transaction(async (manager) => {
+      // Scoped: an item id from another shop simply will not be found, and
+      // the loop below rejects the order rather than pricing it.
       const menuItems = await manager.findBy(MenuItem, {
         id: In(menuItemIds),
+        shopId,
       });
       const itemsById = new Map(menuItems.map((item) => [item.id, item]));
 
@@ -88,7 +95,8 @@ export class OrdersService {
       const total = round2(subtotal - discount + tax);
 
       const order = manager.create(Order, {
-        orderNumber: await this.generateOrderNumber(manager),
+        shopId,
+        orderNumber: await this.generateOrderNumber(manager, shopId),
         subtotal,
         discount,
         tax,
@@ -103,22 +111,30 @@ export class OrdersService {
     });
   }
 
-  /** Sequential, date-prefixed number. Unique constraint guards against races. */
-  private async generateOrderNumber(manager: EntityManager): Promise<string> {
+  /**
+   * Sequential, date-prefixed number. Counted per shop, so each tenant has its
+   * own ORD-YYYYMMDD-0001 series. The (shop_id, order_number) unique index
+   * guards against races.
+   */
+  private async generateOrderNumber(
+    manager: EntityManager,
+    shopId: string,
+  ): Promise<string> {
     const now = new Date();
     const { start, end } = parseDayRange(formatDay(now));
     const countToday = await manager.count(Order, {
-      where: { createdAt: Between(start, end) },
+      where: { shopId, createdAt: Between(start, end) },
     });
 
     const seq = String(countToday + 1).padStart(4, '0');
     return `ORD-${formatDay(now).replace(/-/g, '')}-${seq}`;
   }
 
-  async findAll(query: QueryOrdersDto): Promise<Order[]> {
+  async findAll(query: QueryOrdersDto, shopId: string): Promise<Order[]> {
     const qb = this.ordersRepository
       .createQueryBuilder('order')
       .leftJoinAndSelect('order.items', 'items')
+      .where('order.shop_id = :shopId', { shopId })
       .orderBy('order.createdAt', 'DESC');
 
     if (query.from) {
@@ -138,16 +154,18 @@ export class OrdersService {
     return qb.getMany();
   }
 
-  async findOne(id: string): Promise<Order> {
-    const order = await this.ordersRepository.findOne({ where: { id } });
+  async findOne(id: string, shopId: string): Promise<Order> {
+    const order = await this.ordersRepository.findOne({
+      where: { id, shopId },
+    });
     if (!order) {
       throw new NotFoundException('Order not found');
     }
     return order;
   }
 
-  async void(id: string): Promise<Order> {
-    const order = await this.findOne(id);
+  async void(id: string, shopId: string): Promise<Order> {
+    const order = await this.findOne(id, shopId);
     if (order.status === OrderStatus.VOIDED) {
       throw new BadRequestException('Order is already voided');
     }
@@ -155,8 +173,8 @@ export class OrdersService {
     return this.ordersRepository.save(order);
   }
 
-  async refund(id: string): Promise<Order> {
-    const order = await this.findOne(id);
+  async refund(id: string, shopId: string): Promise<Order> {
+    const order = await this.findOne(id, shopId);
     if (order.status === OrderStatus.REFUNDED) {
       throw new BadRequestException('Order is already refunded');
     }
@@ -168,14 +186,15 @@ export class OrdersService {
   }
 
   /** Daily sales summary. Defaults to today when no date is supplied. */
-  async getSalesSummary(date?: string): Promise<SalesSummary> {
+  async getSalesSummary(shopId: string, date?: string): Promise<SalesSummary> {
     const { start, end, day } = parseDayRange(date);
 
     const totals = await this.ordersRepository
       .createQueryBuilder('order')
       .select('COUNT(*)', 'orderCount')
       .addSelect('COALESCE(SUM(order.total), 0)', 'totalSales')
-      .where('order.status = :status', { status: OrderStatus.COMPLETED })
+      .where('order.shop_id = :shopId', { shopId })
+      .andWhere('order.status = :status', { status: OrderStatus.COMPLETED })
       .andWhere('order.createdAt BETWEEN :start AND :end', { start, end })
       .getRawOne<{ orderCount: string; totalSales: string }>();
 
@@ -184,7 +203,8 @@ export class OrdersService {
       .select('order.payment_method', 'paymentMethod')
       .addSelect('COUNT(*)', 'orderCount')
       .addSelect('COALESCE(SUM(order.total), 0)', 'total')
-      .where('order.status = :status', { status: OrderStatus.COMPLETED })
+      .where('order.shop_id = :shopId', { shopId })
+      .andWhere('order.status = :status', { status: OrderStatus.COMPLETED })
       .andWhere('order.createdAt BETWEEN :start AND :end', { start, end })
       .groupBy('order.payment_method')
       .getRawMany<{
@@ -199,7 +219,8 @@ export class OrdersService {
       .select('item.name_snapshot', 'name')
       .addSelect('SUM(item.quantity)', 'quantitySold')
       .addSelect('SUM(item.line_total)', 'revenue')
-      .where('order.status = :status', { status: OrderStatus.COMPLETED })
+      .where('order.shop_id = :shopId', { shopId })
+      .andWhere('order.status = :status', { status: OrderStatus.COMPLETED })
       .andWhere('order.createdAt BETWEEN :start AND :end', { start, end })
       .groupBy('item.name_snapshot')
       .orderBy('"quantitySold"', 'DESC')
@@ -230,12 +251,13 @@ export class OrdersService {
   }
 
   /** Total completed sales for a month (YYYY-MM). Defaults to current month. */
-  async getMonthlySalesTotal(month?: string): Promise<number> {
+  async getMonthlySalesTotal(shopId: string, month?: string): Promise<number> {
     const { start, end } = parseMonthRange(month);
     const row = await this.ordersRepository
       .createQueryBuilder('order')
       .select('COALESCE(SUM(order.total), 0)', 'total')
-      .where('order.status = :status', { status: OrderStatus.COMPLETED })
+      .where('order.shop_id = :shopId', { shopId })
+      .andWhere('order.status = :status', { status: OrderStatus.COMPLETED })
       .andWhere('order.createdAt BETWEEN :start AND :end', { start, end })
       .getRawOne<{ total: string }>();
     return round2(Number(row?.total ?? 0));

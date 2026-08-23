@@ -20,18 +20,26 @@ export class MenuItemsService {
     private readonly categoriesRepository: Repository<MenuCategory>,
   ) {}
 
-  private async assertCategoryExists(categoryId: string): Promise<void> {
-    const exists = await this.categoriesRepository.existsBy({ id: categoryId });
+  /** Scoped: a category id belonging to another shop is treated as invalid. */
+  private async assertCategoryExists(
+    categoryId: string,
+    shopId: string,
+  ): Promise<void> {
+    const exists = await this.categoriesRepository.existsBy({
+      id: categoryId,
+      shopId,
+    });
     if (!exists) {
       throw new BadRequestException('Referenced menu category does not exist');
     }
   }
 
-  async create(dto: CreateMenuItemDto): Promise<MenuItem> {
+  async create(dto: CreateMenuItemDto, shopId: string): Promise<MenuItem> {
     if (dto.categoryId) {
-      await this.assertCategoryExists(dto.categoryId);
+      await this.assertCategoryExists(dto.categoryId, shopId);
     }
     const item = this.itemsRepository.create({
+      shopId,
       name: dto.name,
       description: dto.description ?? null,
       price: dto.price,
@@ -42,8 +50,8 @@ export class MenuItemsService {
     return this.itemsRepository.save(item);
   }
 
-  findAll(query: QueryMenuItemDto): Promise<MenuItem[]> {
-    const where: FindOptionsWhere<MenuItem> = {};
+  findAll(query: QueryMenuItemDto, shopId: string): Promise<MenuItem[]> {
+    const where: FindOptionsWhere<MenuItem> = { shopId };
     if (query.categoryId) where.categoryId = query.categoryId;
     if (query.available !== undefined) where.isAvailable = query.available;
 
@@ -54,9 +62,9 @@ export class MenuItemsService {
     });
   }
 
-  async findOne(id: string): Promise<MenuItem> {
+  async findOne(id: string, shopId: string): Promise<MenuItem> {
     const item = await this.itemsRepository.findOne({
-      where: { id },
+      where: { id, shopId },
       relations: { category: true },
     });
     if (!item) {
@@ -66,25 +74,31 @@ export class MenuItemsService {
   }
 
   /** Load several items at once (used when creating an order). */
-  findByIds(ids: string[]): Promise<MenuItem[]> {
+  findByIds(ids: string[], shopId: string): Promise<MenuItem[]> {
     if (ids.length === 0) return Promise.resolve([]);
-    return this.itemsRepository.findBy({ id: In(ids) });
+    return this.itemsRepository.findBy({ id: In(ids), shopId });
   }
 
-  async update(id: string, dto: UpdateMenuItemDto): Promise<MenuItem> {
-    const item = await this.findOne(id);
+  async update(
+    id: string,
+    dto: UpdateMenuItemDto,
+    shopId: string,
+  ): Promise<MenuItem> {
+    const item = await this.findOne(id, shopId);
     if (dto.categoryId) {
-      await this.assertCategoryExists(dto.categoryId);
+      await this.assertCategoryExists(dto.categoryId, shopId);
     }
     Object.assign(item, {
       ...dto,
       categoryId: dto.categoryId ?? item.categoryId,
+      // Never let a payload move an item to another shop.
+      shopId: item.shopId,
     });
     return this.itemsRepository.save(item);
   }
 
-  async remove(id: string): Promise<void> {
-    const item = await this.findOne(id);
+  async remove(id: string, shopId: string): Promise<void> {
+    const item = await this.findOne(id, shopId);
     await this.itemsRepository.remove(item);
   }
 }

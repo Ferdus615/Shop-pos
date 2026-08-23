@@ -21,17 +21,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   /** Return value is attached to request.user. Re-checks the user still exists/active. */
   async validate(payload: JwtPayload): Promise<JwtPayloadUser> {
-    const user = await this.usersService
-      .findById(payload.sub)
-      .catch(() => null);
+    const user = await this.usersService.findByIdForAuth(payload.sub);
     if (!user || !user.isActive) {
       throw new UnauthorizedException('User is no longer active');
     }
+    // Read the tenant from the database rather than the token, so a user who
+    // is moved between shops (or detached from one) is scoped correctly on
+    // their very next request instead of when their token expires.
     return {
       id: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
+      shopId: user.shopId,
     };
   }
 }

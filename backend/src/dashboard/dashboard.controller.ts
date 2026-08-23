@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentShop } from '../common/decorators/current-shop.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { DashboardQueryDto } from './dto/dashboard-query.dto';
@@ -17,7 +18,10 @@ export class DashboardController {
     summary:
       "Owner dashboard: today's sales + month-to-date sales/expenses/net",
   })
-  getOverview(@Query() query: DashboardQueryDto) {
-    return this.dashboardService.getOverview(query.date);
+  getOverview(
+    @Query() query: DashboardQueryDto,
+    @CurrentShop() shopId: string,
+  ) {
+    return this.dashboardService.getOverview(shopId, query.date);
   }
 }

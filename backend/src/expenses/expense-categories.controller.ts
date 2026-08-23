@@ -11,6 +11,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentShop } from '../common/decorators/current-shop.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { CreateExpenseCategoryDto } from './dto/create-expense-category.dto';
@@ -25,26 +26,30 @@ export class ExpenseCategoriesController {
   constructor(private readonly categoriesService: ExpenseCategoriesService) {}
 
   @Post()
-  create(@Body() dto: CreateExpenseCategoryDto) {
-    return this.categoriesService.create(dto);
+  create(@Body() dto: CreateExpenseCategoryDto, @CurrentShop() shopId: string) {
+    return this.categoriesService.create(dto, shopId);
   }
 
   @Get()
-  findAll() {
-    return this.categoriesService.findAll();
+  findAll(@CurrentShop() shopId: string) {
+    return this.categoriesService.findAll(shopId);
   }
 
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateExpenseCategoryDto,
+    @CurrentShop() shopId: string,
   ) {
-    return this.categoriesService.update(id, dto);
+    return this.categoriesService.update(id, dto, shopId);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.categoriesService.remove(id);
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentShop() shopId: string,
+  ) {
+    return this.categoriesService.remove(id, shopId);
   }
 }

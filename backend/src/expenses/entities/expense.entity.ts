@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { decimalTransformer } from '../../common/transformers/decimal.transformer';
+import { Shop } from '../../shops/entities/shop.entity';
 import { User } from '../../users/entities/user.entity';
 import { ExpenseCategory } from './expense-category.entity';
 
@@ -16,6 +17,14 @@ import { ExpenseCategory } from './expense-category.entity';
 export class Expense {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @ManyToOne(() => Shop, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'shop_id' })
+  shop: Shop;
+
+  @Index()
+  @Column({ name: 'shop_id', type: 'uuid' })
+  shopId: string;
 
   @Column()
   title: string;

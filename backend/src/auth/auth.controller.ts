@@ -30,6 +30,6 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get the currently authenticated user' })
   me(@CurrentUser() user: JwtPayloadUser) {
-    return user;
+    return this.authService.getProfile(user);
   }
 }

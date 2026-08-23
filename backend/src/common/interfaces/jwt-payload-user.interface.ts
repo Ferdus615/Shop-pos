@@ -6,4 +6,6 @@ export interface JwtPayloadUser {
   email: string;
   name: string;
   role: Role;
+  /** Tenant the request acts within. NULL only for SUPER_ADMIN. */
+  shopId: string | null;
 }

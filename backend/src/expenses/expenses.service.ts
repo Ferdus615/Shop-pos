@@ -25,8 +25,15 @@ export class ExpensesService {
     private readonly categoriesRepository: Repository<ExpenseCategory>,
   ) {}
 
-  private async assertCategoryExists(categoryId: string): Promise<void> {
-    const exists = await this.categoriesRepository.existsBy({ id: categoryId });
+  /** Scoped: a category id from another shop is treated as invalid. */
+  private async assertCategoryExists(
+    categoryId: string,
+    shopId: string,
+  ): Promise<void> {
+    const exists = await this.categoriesRepository.existsBy({
+      id: categoryId,
+      shopId,
+    });
     if (!exists) {
       throw new BadRequestException(
         'Referenced expense category does not exist',
@@ -34,11 +41,16 @@ export class ExpensesService {
     }
   }
 
-  async create(dto: CreateExpenseDto, userId: string | null): Promise<Expense> {
+  async create(
+    dto: CreateExpenseDto,
+    userId: string | null,
+    shopId: string,
+  ): Promise<Expense> {
     if (dto.categoryId) {
-      await this.assertCategoryExists(dto.categoryId);
+      await this.assertCategoryExists(dto.categoryId, shopId);
     }
     const expense = this.expensesRepository.create({
+      shopId,
       title: dto.title,
       amount: dto.amount,
       expenseDate: dto.expenseDate ?? formatDay(new Date()),
@@ -49,8 +61,8 @@ export class ExpensesService {
     return this.expensesRepository.save(expense);
   }
 
-  findAll(query: QueryExpensesDto): Promise<Expense[]> {
-    const where: FindOptionsWhere<Expense> = {};
+  findAll(query: QueryExpensesDto, shopId: string): Promise<Expense[]> {
+    const where: FindOptionsWhere<Expense> = { shopId };
 
     // Default to the current month when no month filter is provided.
     const { start, end } = parseMonthRange(query.month);
@@ -67,9 +79,9 @@ export class ExpensesService {
     });
   }
 
-  async findOne(id: string): Promise<Expense> {
+  async findOne(id: string, shopId: string): Promise<Expense> {
     const expense = await this.expensesRepository.findOne({
-      where: { id },
+      where: { id, shopId },
       relations: { category: true },
     });
     if (!expense) {
@@ -78,10 +90,14 @@ export class ExpensesService {
     return expense;
   }
 
-  async update(id: string, dto: UpdateExpenseDto): Promise<Expense> {
-    const expense = await this.findOne(id);
+  async update(
+    id: string,
+    dto: UpdateExpenseDto,
+    shopId: string,
+  ): Promise<Expense> {
+    const expense = await this.findOne(id, shopId);
     if (dto.categoryId) {
-      await this.assertCategoryExists(dto.categoryId);
+      await this.assertCategoryExists(dto.categoryId, shopId);
     }
     if (dto.title !== undefined) expense.title = dto.title;
     if (dto.amount !== undefined) expense.amount = dto.amount;
@@ -91,13 +107,16 @@ export class ExpensesService {
     return this.expensesRepository.save(expense);
   }
 
-  async remove(id: string): Promise<void> {
-    const expense = await this.findOne(id);
+  async remove(id: string, shopId: string): Promise<void> {
+    const expense = await this.findOne(id, shopId);
     await this.expensesRepository.remove(expense);
   }
 
   /** Monthly expense summary. Defaults to the current month. */
-  async getMonthlySummary(month?: string): Promise<ExpenseSummary> {
+  async getMonthlySummary(
+    shopId: string,
+    month?: string,
+  ): Promise<ExpenseSummary> {
     const { start, end, month: resolvedMonth } = parseMonthRange(month);
     const startDay = formatDay(start);
     const endDay = formatDay(end);
@@ -106,7 +125,8 @@ export class ExpensesService {
       .createQueryBuilder('expense')
       .select('COUNT(*)', 'expenseCount')
       .addSelect('COALESCE(SUM(expense.amount), 0)', 'totalExpenses')
-      .where('expense.expense_date BETWEEN :startDay AND :endDay', {
+      .where('expense.shop_id = :shopId', { shopId })
+      .andWhere('expense.expense_date BETWEEN :startDay AND :endDay', {
         startDay,
         endDay,
       })
@@ -119,7 +139,8 @@ export class ExpensesService {
       .addSelect("COALESCE(category.name, 'Uncategorized')", 'categoryName')
       .addSelect('COUNT(*)', 'expenseCount')
       .addSelect('COALESCE(SUM(expense.amount), 0)', 'total')
-      .where('expense.expense_date BETWEEN :startDay AND :endDay', {
+      .where('expense.shop_id = :shopId', { shopId })
+      .andWhere('expense.expense_date BETWEEN :startDay AND :endDay', {
         startDay,
         endDay,
       })
