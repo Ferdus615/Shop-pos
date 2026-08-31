@@ -13,6 +13,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
+import { PrintingModule } from './printing/printing.module';
 import { ShopsModule } from './shops/shops.module';
 import { UsersModule } from './users/users.module';
 
@@ -30,6 +31,7 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     MenuModule,
     OrdersModule,
+    PrintingModule,
     ExpensesModule,
     DashboardModule,
   ],

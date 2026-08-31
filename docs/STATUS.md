@@ -1,6 +1,6 @@
 # Shop POS — Project Status
 
-_What's built, what's verified, and what's left. Last updated: 2026-07-15._
+_What's built, what's verified, and what's left. Last updated: 2026-08-29._
 
 This complements the other docs:
 - `PLANNING.md` — the plan and the "why" behind each feature
@@ -25,6 +25,7 @@ This complements the other docs:
 | Owner dashboard (sales + expenses + net) | ✅ Done | ⬜ To do |
 | Staff/user management | ✅ Done | ⬜ To do |
 | Void an order | ✅ Done | ⬜ To do |
+| Bluetooth receipt printing (print bridge) | ✅ Done | ✅ Done |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started
 
@@ -51,6 +52,28 @@ Complete and covered by a 39-check end-to-end smoke test.
   monthly expenses, and net profit.
 - **Supporting** — Swagger docs at `/docs`, seed script (first owner + schema),
   Docker Compose Postgres, migration scripts, input validation everywhere.
+
+### Print bridge (Node, `shop-pos/bridge`)
+Prints receipts on the shop's Bluetooth thermal printer (BT583, 58mm ESC/POS).
+
+- **Why it exists** — no browser can reach these printers. Web Bluetooth speaks
+  only BLE GATT; the printer is Bluetooth *Classic* (SPP), and iOS blocks serial
+  outright. So the printer is owned by a small Node process on the counter PC.
+- **Queue** — tills `POST /print-jobs`; the bridge claims work with
+  `FOR UPDATE SKIP LOCKED` (no double printing), acknowledges each slip, retries
+  three times, requeues jobs abandoned by a crash, and expires slips older than
+  ten minutes.
+- **Status** — `GET /print-jobs/printer-status` reports whether a station has
+  checked in recently with its printer port open.
+- **Three routes, tried in order** — a bridge on the same machine
+  (`127.0.0.1:9110`), the shop's counter-PC bridge via the queue, then the
+  browser print dialog as a fallback, so a receipt is always obtainable.
+- **ESC/POS renderer** — hand-rolled, width-aware (32 columns at 58mm, halved
+  for double-width headers), chunked writes for small Bluetooth buffers.
+- **Setup + troubleshooting** — see `bridge/README.md`.
+
+Verified end-to-end against a live backend: 22 checks covering the queue
+lifecycle, claim exclusivity, the retry/give-up path, and tenant isolation.
 
 ### Frontend (Next.js + Tailwind + shadcn/ui, `shop-pos/frontend`)
 Verified with headless browser (Playwright) smoke tests.
@@ -90,7 +113,6 @@ Verified with headless browser (Playwright) smoke tests.
 - Currency symbol/formatting configuration (currently plain 2-decimal numbers).
 
 ### Phase 3 — backlog (not yet designed; may need backend work)
-- Printed / emailed receipts
 - Refunds and partial voids
 - Charts and trends (weekly/monthly graphs)
 - Per-item tax rules / multiple tax rates
@@ -112,6 +134,12 @@ npm run start:dev             # API on http://localhost:3000, docs at /docs
 # 2. Frontend  (from shop-pos/frontend)
 npm install
 npm run dev -- -p 3001        # app on http://localhost:3001
+
+# 3. Print bridge  (from shop-pos/bridge, on the PC the printer is paired to)
+npm install
+npm run probe                 # find the printer's COM port
+cp .env.example .env          # then fill in the port + a shop login
+npm start
 ```
 
 Default owner login: `owner@shop.local` / `owner123`.
