@@ -1,31 +1,37 @@
 # Shop POS — Project Status
 
-_What's built, what's verified, and what's left. Last updated: 2026-08-29._
+_What's built, what's verified, and what's left. Last updated: 2026-08-31._
 
 This complements the other docs:
-- `PLANNING.md` — the plan and the "why" behind each feature
-- `TECHNICAL.md` — architecture and developer detail
-- `NON-TECHNICAL.md` — plain-language guide
+- [PLANNING.md](PLANNING.md) — the plan and the "why" behind each feature
+- [TECHNICAL.md](TECHNICAL.md) — architecture and developer detail
+- [API.md](API.md) — endpoint reference
+- [OPERATIONS.md](OPERATIONS.md) — configuration, deployment, runbook
+- [NON-TECHNICAL.md](NON-TECHNICAL.md) — plain-language guide
 
 ---
 
 ## 1. At a glance
 
-- **Backend:** ✅ Complete and verified (all planned features).
-- **Frontend:** 🟡 In progress — Login, POS, Menu management, and Sales tracking are
-  done; Expenses and Dashboard pages remain.
+- **Backend:** ✅ Complete for every planned feature, plus multi-tenancy, refunds and
+  the print queue.
+- **Frontend:** 🟡 The till and the owner's day-to-day screens are done; expenses and
+  the dashboard remain.
+- **Print bridge:** ✅ Complete and verified against live hardware.
 
 | Feature | Backend API | Frontend UI |
 | ------- | :---------: | :---------: |
-| Authentication + roles (OWNER/STAFF) | ✅ Done | ✅ Done |
+| Authentication + roles (OWNER / STAFF) | ✅ Done | ✅ Done |
+| Multi-tenancy — shops, platform administrator | ✅ Done | ✅ Done |
 | Menu management (categories + items) | ✅ Done | ✅ Done |
 | POS — ring up sales | ✅ Done | ✅ Done |
-| Sales tracking (daily calculation) | ✅ Done | ✅ Done |
-| Expense tracking (monthly) | ✅ Done | ⬜ To do |
-| Owner dashboard (sales + expenses + net) | ✅ Done | ⬜ To do |
-| Staff/user management | ✅ Done | ⬜ To do |
+| Sales tracking (daily) | ✅ Done | ✅ Done |
+| Staff / user management | ✅ Done | ✅ Done |
+| Refund an order | ✅ Done | ✅ Done |
 | Void an order | ✅ Done | ⬜ To do |
 | Bluetooth receipt printing (print bridge) | ✅ Done | ✅ Done |
+| Expense tracking (monthly) | ✅ Done | ⬜ To do |
+| Owner dashboard (sales + expenses + net) | ✅ Done | ⬜ To do |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started
 
@@ -33,125 +39,160 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started
 
 ## 2. Done — details
 
-### Backend (NestJS + PostgreSQL, `shop-pos/backend`)
-Complete and covered by a 39-check end-to-end smoke test.
+### Backend (NestJS + PostgreSQL, `backend/`)
 
-- **Auth & RBAC** — JWT login (`/auth/login`), current user (`/auth/me`), global auth
-  guard with `@Public()` opt-out, `OWNER`/`STAFF` role guard. Passwords hashed
-  (`bcryptjs`) and never returned.
-- **Users** — owner-only CRUD (`/users`), soft-deactivate.
-- **Menu** — categories & items CRUD (`/menu/categories`, `/menu/items`), read for all,
-  write for owner, availability + optional image, filters.
-- **Orders (POS)** — `POST /orders` prices the order server-side inside a transaction,
-  snapshots item name/price, generates an order number; list with date filters; void.
-- **Sales tracking** — `GET /orders/summary?date=` (defaults to today): total, order
-  count, payment-method breakdown, top items.
-- **Expenses** — categories + expenses CRUD; `GET /expenses/summary?month=` (defaults to
-  current month) with per-category breakdown.
-- **Dashboard** — `GET /dashboard?date=` combining today's sales, month-to-date sales,
-  monthly expenses, and net profit.
-- **Supporting** — Swagger docs at `/docs`, seed script (first owner + schema),
-  Docker Compose Postgres, migration scripts, input validation everywhere.
+- **Multi-tenancy** — a `Shop` is the tenant; every row of trading data carries
+  `shop_id`. The shop comes from the token, never from the request, and is enforced in
+  three layers (token, per-query scoping, `ShopContextGuard` backstop).
+- **Platform administration** — a `SUPER_ADMIN` role that belongs to no shop, creates a
+  shop and its first owner in one call, can suspend a shop (blocking login for all of
+  its users), and is refused access to any shop's trading data.
+- **Auth & RBAC** — JWT login, `/auth/me`, global auth guard with `@Public()` opt-out,
+  role guard. Passwords bcrypt-hashed and never returned.
+- **Users** — owner-only CRUD within the shop, soft-deactivate preserving order history.
+- **Menu** — categories and items; read for all shop users, write for the owner;
+  availability flag, optional image, filters.
+- **Orders (POS)** — server-side pricing inside a transaction, duplicate-line merging,
+  name/price snapshots, per-shop order numbering, list with date and status filters,
+  void and refund.
+- **Sales tracking** — daily summary: total, order count, payment-method breakdown, top
+  five items.
+- **Expenses** — categories and expenses CRUD, monthly summary with per-category
+  breakdown.
+- **Dashboard** — one call combining today's sales, month-to-date sales, monthly
+  expenses and net profit.
+- **Printing** — the print-job queue: exclusive claims, station heartbeat, retry and
+  give-up, stale-job expiry, printer status for the tills.
+- **Reporting timezone** — day and month boundaries computed in the business timezone
+  (`APP_TIMEZONE`, default `Asia/Dhaka`) rather than the server's, unit-tested.
+- **Supporting** — Swagger at `/docs`, idempotent startup seeding, Dockerfile, local
+  Postgres compose file, migration scripts, validation everywhere.
 
-### Print bridge (Node, `shop-pos/bridge`)
-Prints receipts on the shop's Bluetooth thermal printer (BT583, 58mm ESC/POS).
+Verified by a 39-check end-to-end smoke run (auth, menu, order pricing, summaries,
+dashboard math, RBAC boundaries) plus unit tests for the date helpers and the tenant
+guard.
 
-- **Why it exists** — no browser can reach these printers. Web Bluetooth speaks
-  only BLE GATT; the printer is Bluetooth *Classic* (SPP), and iOS blocks serial
-  outright. So the printer is owned by a small Node process on the counter PC.
-- **Queue** — tills `POST /print-jobs`; the bridge claims work with
-  `FOR UPDATE SKIP LOCKED` (no double printing), acknowledges each slip, retries
-  three times, requeues jobs abandoned by a crash, and expires slips older than
-  ten minutes.
-- **Status** — `GET /print-jobs/printer-status` reports whether a station has
-  checked in recently with its printer port open.
-- **Three routes, tried in order** — a bridge on the same machine
-  (`127.0.0.1:9110`), the shop's counter-PC bridge via the queue, then the
-  browser print dialog as a fallback, so a receipt is always obtainable.
-- **ESC/POS renderer** — hand-rolled, width-aware (32 columns at 58mm, halved
-  for double-width headers), chunked writes for small Bluetooth buffers.
-- **Setup + troubleshooting** — see `bridge/README.md`.
+### Print bridge (Node, `bridge/`)
 
-Verified end-to-end against a live backend: 22 checks covering the queue
-lifecycle, claim exclusivity, the retry/give-up path, and tenant isolation.
+Prints on the shop's Bluetooth thermal printer (BT583 class, 58 mm ESC/POS).
 
-### Frontend (Next.js + Tailwind + shadcn/ui, `shop-pos/frontend`)
-Verified with headless browser (Playwright) smoke tests.
+- **Why it exists** — no browser can reach these printers. Web Bluetooth speaks only
+  BLE GATT; the printer is Bluetooth *Classic* (SPP), and iOS blocks serial outright. So
+  the printer is owned by a small Node process on the counter PC.
+- **Queue** — tills `POST /print-jobs`; the bridge claims work with `FOR UPDATE SKIP
+  LOCKED` (no double printing), acknowledges each slip, retries three times, requeues
+  jobs abandoned by a crash, and expires slips older than ten minutes.
+- **Status** — `GET /print-jobs/printer-status` reports whether a station has checked in
+  recently with its printer port open.
+- **Three routes, tried in order** — a bridge on the same machine (`127.0.0.1:9110`),
+  the shop's counter-PC bridge via the queue, then the browser print dialog as a
+  fallback, so a receipt is always obtainable.
+- **ESC/POS renderer** — hand-rolled, width-aware (32 columns at 58 mm, halved for
+  double-width headers), chunked writes for small Bluetooth buffers.
+- **Setup and troubleshooting** — [bridge/README.md](../bridge/README.md).
 
-- **Login + session** — JWT stored client-side, auto-redirect, 401 handling.
-- **Protected app shell** — role-aware sidebar/topbar nav, current user, sign-out.
-- **POS** (`/pos`) — item grid + category filters, cart with quantities, discount,
-  payment method, checkout posting to `/orders`, confirmation toast.
-- **Menu management** (`/menu`, owner-only) — full CRUD for categories and items via
-  dialogs.
-- **Sales tracking** (`/sales`, owner-only) — date picker (defaults to today), total
-  sales, order count, average order value, payment-method breakdown, top items, and the
-  day's orders.
+Verified end-to-end against a live backend: 22 checks covering the queue lifecycle,
+claim exclusivity, the retry/give-up path, and tenant isolation.
+
+### Frontend (Next.js + Tailwind + shadcn/ui, `frontend/`)
+
+Verified with headless-browser (Playwright) smoke tests.
+
+- **Login + session** — JWT held client-side, auto-redirect, global 401 handling.
+- **Protected app shell** — role-aware sidebar and topbar, current user and shop,
+  sign-out, light/dark theme.
+- **POS** (`/pos`) — item grid with category filters, cart with quantities, discount,
+  payment method, checkout, and receipt printing via the three-route bridge.
+- **Menu management** (`/menu`, owner) — full CRUD for categories and items.
+- **Sales tracking** (`/sales`, owner) — date picker defaulting to today, total sales,
+  order count, average order value, payment-method breakdown, top items, the day's
+  orders, order detail, and refund.
+- **Staff** (`/staff`, owner) — list users, create staff accounts, edit, deactivate.
+- **Shops** (`/admin/shops`, platform admin) — list shops, create a shop with its owner,
+  edit details, suspend and reactivate.
 
 ---
 
 ## 3. To do
 
-### Frontend — remaining Phase 2 (backend already supports all of these)
-1. **Expenses pages** (`/expenses`, owner-only)
-   - List expenses for a chosen month (month picker, defaults to current month).
-   - Add / edit / delete expenses and expense categories.
-   - Monthly summary: total + breakdown by category.
-2. **Owner dashboard** (`/dashboard` or home, owner-only)
-   - Today's sales, month-to-date sales, month-to-date expenses, net profit.
-   - Likely becomes the landing page after login for owners.
-3. **Staff / user management UI** (`/users` or settings, owner-only)
-   - List users, create staff accounts, deactivate, change roles.
-4. **Void an order** — action in the POS/sales order list (owner-only), calling
-   `POST /orders/:id/void`.
+### Frontend — remaining (the backend already supports all of these)
 
-### Polish / smaller improvements
+1. **Expenses pages** (`/expenses`, owner-only)
+   - List expenses for a chosen month (month picker, defaults to the current month).
+   - Add / edit / delete expenses and expense categories.
+   - Monthly summary: total plus breakdown by category.
+2. **Owner dashboard** (`/dashboard`, owner-only)
+   - Today's sales, month-to-date sales, month-to-date expenses, net profit.
+   - Likely becomes the landing page after login for owners, in place of `/pos`.
+3. **Void an order** — an owner action in the sales order list, alongside refund,
+   calling `POST /orders/:id/void`.
+
+### Polish
+
 - Replace `window.confirm` deletes with a styled confirm dialog.
 - Loading skeletons instead of "Loading…" text.
-- Empty-state illustrations/help.
-- Show the logged-in staff name on receipts / order detail.
-- Currency symbol/formatting configuration (currently plain 2-decimal numbers).
+- Empty-state help and illustrations.
+- Show the logged-in staff name on receipts and order detail.
+- Currency symbol and formatting configuration (currently plain two-decimal numbers).
 
-### Phase 3 — backlog (not yet designed; may need backend work)
-- Refunds and partial voids
-- Charts and trends (weekly/monthly graphs)
-- Per-item tax rules / multiple tax rates
+### Engineering
+
+- Commit the initial TypeORM migration — the schema has so far only ever been created
+  by `synchronize`, so there is no reproducible production schema yet.
+- Turn the manual end-to-end smoke runs into a committed Nest e2e suite, and add
+  per-service unit tests.
+- Restrict CORS to known origins and add rate limiting on `POST /auth/login` before any
+  public deployment.
+
+### Backlog — not yet designed, likely needs backend work
+
+- Partial refunds and per-line voids
+- Charts and trends (weekly / monthly graphs)
+- Per-item tax rules and multiple tax rates
 - Inventory / stock tracking
-- Multiple shops or terminals
-- Export to CSV/Excel for accounting
-- Configurable timezone and currency
+- Multiple terminals per shop with per-terminal reporting
+- CSV / Excel export for accounting
+- Per-shop timezone and currency
+- Raster (bitmap) receipt rendering so non-Latin item names can print
 
 ---
 
 ## 4. How to run (current state)
 
 ```bash
-# 1. Database + backend  (from shop-pos/backend)
-docker compose up -d          # Postgres (Docker Desktop must be running)
-npm run seed                  # first run only: schema + owner account
+# 1. Backend  (from backend/)
+docker compose up -d          # local Postgres — skip if using a hosted database
+npm install
+cp .env.example .env          # set DATABASE_URL and JWT_SECRET
 npm run start:dev             # API on http://localhost:3000, docs at /docs
 
-# 2. Frontend  (from shop-pos/frontend)
+# 2. Frontend  (from frontend/)
 npm install
 npm run dev -- -p 3001        # app on http://localhost:3001
 
-# 3. Print bridge  (from shop-pos/bridge, on the PC the printer is paired to)
+# 3. Print bridge  (from bridge/, on the PC the printer is paired to)
 npm install
 npm run probe                 # find the printer's COM port
 cp .env.example .env          # then fill in the port + a shop login
 npm start
 ```
 
-Default owner login: `owner@shop.local` / `owner123`.
+Seeding runs automatically on backend startup and is idempotent. Default logins:
 
-**Ops note:** if the backend returns `500` after a machine reboot, the Postgres
-container is likely stopped — run `docker compose up -d` from `shop-pos/backend` again.
-Data is preserved in a Docker volume.
+| Role | Email | Password |
+| ---- | ----- | -------- |
+| Platform admin | `admin@shop-pos.local` | `admin123` |
+| Shop owner | `owner@shop.local` | `owner123` |
+
+Change both before the deployment is reachable by anyone else.
+
+Operational issues — a stopped database container, a silent printer, reports off by a
+day — are covered in the [OPERATIONS.md runbook](OPERATIONS.md#9-runbook).
 
 ---
 
 ## 5. Suggested next step
 
-Build the **Expenses pages** and the **Owner dashboard** to complete Phase 2 — both are
-fully supported by the backend and would round out the app into a complete
-sales-and-expenses tool.
+Build the **Expenses pages** and the **Owner dashboard**. Both are fully supported by
+the backend, and together they turn the app from a till into a complete
+sales-and-expenses tool — which is the goal the project set out with.
