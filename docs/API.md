@@ -1,0 +1,466 @@
+# Shop POS — API Reference
+
+_Audience: anyone writing a client against the backend. Last updated: 2026-08-31._
+
+A live, interactive version of this reference (OpenAPI/Swagger) is served by the
+running backend at **`/docs`**. This document is the narrative companion: it states the
+role each endpoint requires, the tenant rules, and the errors worth handling.
+
+Base URL: `http://localhost:3000` in development.
+
+---
+
+## 1. Conventions
+
+**Authentication.** Every endpoint except those marked _public_ requires a bearer
+token:
+
+```
+Authorization: Bearer <jwt>
+```
+
+**Tenancy.** The shop is taken from the token. No endpoint accepts a shop id as a
+parameter, and an id belonging to another shop is simply not found (`404`). See
+[TECHNICAL.md §4](TECHNICAL.md#4-multi-tenancy).
+
+**Roles.** `SUPER_ADMIN` (platform, no shop), `OWNER`, `STAFF`. Where a role column
+says "OWNER", `STAFF` receives `403`.
+
+**Validation.** Bodies are validated with a global whitelist pipe: unknown properties
+are rejected rather than ignored. A validation failure returns `400` with `message` as
+an array of strings.
+
+**Money.** All amounts are numbers with two decimal places. Totals are always computed
+server-side; a client never sends a price.
+
+**Dates.** `date` parameters are `YYYY-MM-DD`, `month` parameters are `YYYY-MM`. Both
+are interpreted in the deployment's business timezone (`APP_TIMEZONE`, default
+`Asia/Dhaka`).
+
+**Enums.**
+
+| Enum | Values |
+| ---- | ------ |
+| `Role` | `SUPER_ADMIN`, `OWNER`, `STAFF` |
+| `PaymentMethod` | `CASH`, `BKASH`, `NAGAD` |
+| `OrderStatus` | `COMPLETED`, `VOIDED`, `REFUNDED` |
+| `PrintJobType` | `RECEIPT`, `KITCHEN` |
+| `PrintJobStatus` | `PENDING`, `PRINTING`, `DONE`, `FAILED` |
+
+**Common error shapes.**
+
+| Status | Meaning |
+| ------ | ------- |
+| `400` | Validation failure, or a rejected business rule (unavailable item, discount above subtotal, illegal status transition) |
+| `401` | Missing, expired or invalid token; inactive account |
+| `403` | Role not permitted, or no shop context (platform admin on a shop route, or a user with no shop) |
+| `404` | Not found **or** belonging to another shop — the two are indistinguishable by design |
+| `409` | Uniqueness conflict (email already taken, duplicate shop slug or category name) |
+
+---
+
+## 2. Service
+
+| Method | Path | Auth | Description |
+| ------ | ---- | ---- | ----------- |
+| `GET` | `/` | public | Service banner |
+| `GET` | `/health` | public | Liveness probe |
+| `GET` | `/docs` | public | Swagger UI |
+
+---
+
+## 3. Authentication
+
+### `POST /auth/login` — public
+
+```json
+{ "email": "owner@shop.local", "password": "owner123" }
+```
+
+Returns a signed JWT and the user, including the shop they belong to:
+
+```json
+{
+  "accessToken": "eyJhbGciOi...",
+  "user": {
+    "id": "uuid",
+    "name": "Shop Owner",
+    "email": "owner@shop.local",
+    "role": "OWNER",
+    "shopId": "uuid",
+    "isActive": true
+  }
+}
+```
+
+`401` for wrong credentials, an inactive user, or a user whose shop is deactivated. The
+password hash is never present in any response.
+
+### `GET /auth/me` — any authenticated role
+
+The current user. This is the one shop-less route (`@NoShopRequired()`), so a
+`SUPER_ADMIN` can identify themselves.
+
+---
+
+## 4. Shops (platform administration)
+
+All routes require **`SUPER_ADMIN`**. These are the only routes a platform admin may
+call; any shop route returns `403`.
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `POST` | `/shops` | Create a shop **and its first owner** in one call |
+| `GET` | `/shops` | List all shops |
+| `GET` | `/shops/:id` | One shop |
+| `PATCH` | `/shops/:id` | Rename, edit contact details, activate/suspend |
+| `DELETE` | `/shops/:id` | Delete a shop and all of its data |
+
+### `POST /shops`
+
+```json
+{
+  "name": "Naval Bay",
+  "slug": "naval-bay",
+  "address": "Sector-7, Uttara, Dhaka",
+  "phone": "+8801700000000",
+  "owner": {
+    "name": "Owner Name",
+    "email": "owner@navalbay.local",
+    "password": "a-strong-password"
+  }
+}
+```
+
+`slug` must be lowercase letters, numbers and hyphens, and unique platform-wide. The
+owner's email must not already exist on the platform (emails are unique across all
+shops). `409` on either conflict.
+
+### `PATCH /shops/:id`
+
+Accepts `name`, `address`, `phone`, `isActive`. Setting `isActive: false` **suspends
+the shop**: every user belonging to it is refused at login. The slug cannot be changed.
+
+> `DELETE /shops/:id` cascades to the shop's users, menu, orders, expenses and print
+> jobs. It is irreversible — suspend with `isActive: false` unless the data is genuinely
+> meant to go.
+
+---
+
+## 5. Shop users
+
+All routes require **`OWNER`**, and operate only within the caller's own shop.
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `POST` | `/users` | Create a staff or owner account for this shop |
+| `GET` | `/users` | List this shop's users |
+| `GET` | `/users/:id` | One user |
+| `PATCH` | `/users/:id` | Update name, email, password, role, `isActive` |
+| `DELETE` | `/users/:id` | Deactivate (soft) — the record and its order history remain |
+
+### `POST /users`
+
+```json
+{
+  "name": "Counter Staff",
+  "email": "staff@shop.local",
+  "password": "a-strong-password",
+  "role": "STAFF"
+}
+```
+
+`role` defaults to `STAFF`; `SUPER_ADMIN` cannot be assigned here. The new user is
+attached to the caller's shop automatically — there is no `shopId` field. `409` if the
+email exists anywhere on the platform.
+
+`DELETE` sets `isActive: false` rather than removing the row, so past orders keep their
+"created by" attribution.
+
+---
+
+## 6. Menu
+
+Reads are available to `OWNER` and `STAFF`; writes are **`OWNER`** only.
+
+### Categories
+
+| Method | Path | Role | Description |
+| ------ | ---- | ---- | ----------- |
+| `GET` | `/menu/categories` | any | List categories |
+| `GET` | `/menu/categories/:id` | any | One category |
+| `POST` | `/menu/categories` | OWNER | Create — `{ name, description? }` |
+| `PATCH` | `/menu/categories/:id` | OWNER | Update |
+| `DELETE` | `/menu/categories/:id` | OWNER | Delete — items are kept, their `categoryId` becomes `null` |
+
+### Items
+
+| Method | Path | Role | Description |
+| ------ | ---- | ---- | ----------- |
+| `GET` | `/menu/items` | any | List; filters `categoryId`, `available` |
+| `GET` | `/menu/items/:id` | any | One item |
+| `POST` | `/menu/items` | OWNER | Create |
+| `PATCH` | `/menu/items/:id` | OWNER | Update (partial) |
+| `DELETE` | `/menu/items/:id` | OWNER | Delete — past order lines are unaffected |
+
+```json
+{
+  "name": "Cappuccino",
+  "description": "Double shot",
+  "price": 180,
+  "categoryId": "uuid",
+  "isAvailable": true,
+  "imageUrl": "https://…"
+}
+```
+
+Marking an item `isAvailable: false` keeps it on the menu but makes it unsellable: a
+checkout naming it returns `400`. Deleting an item never alters historical receipts,
+which carry their own name and price snapshot.
+
+---
+
+## 7. Orders (POS)
+
+| Method | Path | Role | Description |
+| ------ | ---- | ---- | ----------- |
+| `POST` | `/orders` | OWNER, STAFF | Ring up a sale |
+| `GET` | `/orders` | OWNER, STAFF | List; filters `from`, `to`, `status` |
+| `GET` | `/orders/:id` | OWNER, STAFF | One order with its lines |
+| `GET` | `/orders/summary` | OWNER | Daily sales summary |
+| `POST` | `/orders/:id/void` | OWNER | Void an order |
+| `POST` | `/orders/:id/refund` | OWNER | Refund an order |
+
+### `POST /orders`
+
+```json
+{
+  "items": [
+    { "menuItemId": "uuid", "quantity": 2 },
+    { "menuItemId": "uuid", "quantity": 1 }
+  ],
+  "paymentMethod": "CASH",
+  "discount": 20,
+  "tax": 0
+}
+```
+
+The request carries **no prices**. The server prices the order inside a transaction
+from the shop's live menu, merges duplicate lines for the same item, snapshots each
+item's name and unit price, and assigns an order number.
+
+Response:
+
+```json
+{
+  "id": "uuid",
+  "orderNumber": "ORD-20260831-0007",
+  "subtotal": 540,
+  "discount": 20,
+  "tax": 0,
+  "total": 520,
+  "paymentMethod": "CASH",
+  "status": "COMPLETED",
+  "createdById": "uuid",
+  "items": [
+    {
+      "id": "uuid",
+      "menuItemId": "uuid",
+      "nameSnapshot": "Cappuccino",
+      "unitPrice": 180,
+      "quantity": 2,
+      "lineTotal": 360
+    }
+  ],
+  "createdAt": "2026-08-31T09:14:02.000Z"
+}
+```
+
+`400` when an item id does not exist in this shop, an item is unavailable, or the
+discount exceeds the subtotal.
+
+### `GET /orders/summary?date=YYYY-MM-DD`
+
+Defaults to today. Counts `COMPLETED` orders only.
+
+```json
+{
+  "date": "2026-08-31",
+  "orderCount": 42,
+  "totalSales": 18450,
+  "byPaymentMethod": [
+    { "paymentMethod": "CASH", "orderCount": 30, "total": 12100 },
+    { "paymentMethod": "BKASH", "orderCount": 12, "total": 6350 }
+  ],
+  "topItems": [
+    { "name": "Cappuccino", "quantitySold": 37, "revenue": 6660 }
+  ]
+}
+```
+
+`topItems` holds at most five entries, ranked by quantity sold.
+
+### `POST /orders/:id/void` and `POST /orders/:id/refund`
+
+Status transitions; nothing is deleted, and the order drops out of sales reporting
+because only `COMPLETED` orders are counted. Both return the updated order.
+
+| Attempt | Result |
+| ------- | ------ |
+| Void an order already `VOIDED` | `400` "Order is already voided" |
+| Refund an order already `REFUNDED` | `400` "Order is already refunded" |
+| Refund a `VOIDED` order | `400` "Cannot refund a voided order" |
+
+---
+
+## 8. Expenses
+
+All routes require **`OWNER`**.
+
+### Expense categories
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `POST` | `/expenses/categories` | Create — `{ name }`, unique within the shop |
+| `GET` | `/expenses/categories` | List |
+| `PATCH` | `/expenses/categories/:id` | Rename |
+| `DELETE` | `/expenses/categories/:id` | Delete — expenses are kept, uncategorized |
+
+### Expenses
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `GET` | `/expenses/summary` | Monthly summary; `month=YYYY-MM`, defaults to the current month |
+| `POST` | `/expenses` | Create |
+| `GET` | `/expenses` | List; filters `month`, `categoryId` |
+| `GET` | `/expenses/:id` | One expense |
+| `PATCH` | `/expenses/:id` | Update (partial) |
+| `DELETE` | `/expenses/:id` | Delete |
+
+```json
+{
+  "title": "Milk supply",
+  "amount": 1250,
+  "expenseDate": "2026-08-31",
+  "categoryId": "uuid",
+  "note": "Weekly delivery"
+}
+```
+
+`expenseDate` defaults to today; `categoryId` and `note` are optional.
+
+### `GET /expenses/summary?month=YYYY-MM`
+
+```json
+{
+  "month": "2026-08",
+  "expenseCount": 23,
+  "totalExpenses": 41500,
+  "byCategory": [
+    { "categoryId": "uuid", "categoryName": "Supplies", "expenseCount": 12, "total": 21000 },
+    { "categoryId": null, "categoryName": "Uncategorized", "expenseCount": 2, "total": 1500 }
+  ]
+}
+```
+
+---
+
+## 9. Dashboard
+
+### `GET /dashboard?date=YYYY-MM-DD` — **`OWNER`**
+
+One call composing the day's sales with the month's sales and expenses, so the owner
+screen needs no client-side arithmetic.
+
+```json
+{
+  "date": "2026-08-31",
+  "today": { "…": "the same shape as GET /orders/summary" },
+  "monthToDate": {
+    "totalSales": 512000,
+    "totalExpenses": 41500,
+    "netProfit": 470500,
+    "expensesByCategory": [ "…" ]
+  }
+}
+```
+
+`netProfit` is `totalSales − totalExpenses` for the month containing `date`.
+
+---
+
+## 10. Printing
+
+Available to `OWNER` and `STAFF` — the bridge signs in as an ordinary shop user, so it
+needs no special role. All jobs are scoped to the caller's shop. Background
+architecture is in [TECHNICAL.md §8](TECHNICAL.md#8-receipt-printing).
+
+### Till side
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `POST` | `/print-jobs` | Queue a slip |
+| `GET` | `/print-jobs/printer-status` | Is this shop's printer reachable right now? |
+| `GET` | `/print-jobs` | Recent jobs, newest first; filters `status`, `limit` |
+| `POST` | `/print-jobs/:id/retry` | Requeue a `FAILED` slip |
+
+#### `POST /print-jobs`
+
+```json
+{ "type": "RECEIPT", "payload": { "…": "receipt contents" } }
+```
+
+`payload` is stored verbatim as `jsonb` and is opaque to the backend: it is the same
+object the frontend builds for browser printing, so one shape serves both paths. The
+job is created `PENDING` with `attempts: 0`.
+
+#### `GET /print-jobs/printer-status`
+
+```json
+{
+  "online": true,
+  "stationOnline": true,
+  "stationName": "Counter PC",
+  "lastSeenAt": "2026-08-31T09:13:58.000Z",
+  "lastError": null,
+  "pendingJobs": 0
+}
+```
+
+`stationOnline` means a bridge checked in within the last 30 seconds; `online`
+additionally requires that its printer port was open. The POS queues a job only when
+`online` is true, and otherwise falls back to the browser print dialog.
+
+### Bridge side
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `POST` | `/print-jobs/claim` | Claim pending slips — this call is also the station heartbeat |
+| `POST` | `/print-jobs/:id/ack` | Report whether a claimed slip printed |
+
+#### `POST /print-jobs/claim`
+
+```json
+{
+  "name": "Counter PC",
+  "printerConnected": true,
+  "lastError": null,
+  "limit": 5
+}
+```
+
+Returns the claimed jobs (now `PRINTING`, with `attempts` incremented). Selection uses
+`FOR UPDATE SKIP LOCKED`, so concurrent bridges never receive the same slip. The same
+call upserts the shop's single `PrintStation` row, which is what
+`printer-status` reports on.
+
+#### `POST /print-jobs/:id/ack`
+
+```json
+{ "success": false, "error": "COM3: Access is denied" }
+```
+
+`success: true` marks the job `DONE`. `success: false` returns it to `PENDING` for
+another attempt, or marks it `FAILED` once `attempts` reaches 3, keeping `error` as the
+last failure. A job claimed but never acknowledged is requeued automatically after 60
+seconds; anything still pending after 10 minutes is failed rather than printed.
