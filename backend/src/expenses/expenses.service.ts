@@ -103,7 +103,13 @@ export class ExpensesService {
     if (dto.amount !== undefined) expense.amount = dto.amount;
     if (dto.expenseDate !== undefined) expense.expenseDate = dto.expenseDate;
     if (dto.note !== undefined) expense.note = dto.note ?? null;
-    if (dto.categoryId !== undefined) expense.categoryId = dto.categoryId;
+    if (dto.categoryId !== undefined) {
+      expense.categoryId = dto.categoryId;
+      // findOne loaded the old `category`, and save lets a loaded relation win
+      // over the FK column — leaving it set would write the old id straight
+      // back, so recategorizing (and clearing) would silently do nothing.
+      expense.category = null;
+    }
     return this.expensesRepository.save(expense);
   }
 

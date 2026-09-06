@@ -1,7 +1,7 @@
 # Shop POS — Plain-Language Guide
 
 _Audience: shop owners and anyone who doesn't need the technical detail._
-_Last updated: 2026-08-31._
+_Last updated: 2026-09-06._
 
 ## What is this?
 
@@ -70,9 +70,11 @@ Their past sales stay on record.
 
 ### 7. Track your expenses
 
-Record what you spend — rent, supplies, bills — sorted into your own categories, and
-see a monthly total with a breakdown of where the money went. _The engine does this
-today; the screens for it are still being built._
+Record what you spend — rent, supplies, bills — sorted into your own categories. Set
+up your categories once (like your menu categories), then file each expense under one.
+The Expenses screen opens on this month and shows your total, how many entries there
+are, your biggest category, and what each category cost you. Pick another month from
+the month box to look back.
 
 ### 8. Owner dashboard
 
@@ -115,8 +117,8 @@ to can get in.
 
 ## What's next?
 
-- **The expense screens and the owner dashboard** — the last two screens, so the app
-  covers money going out as well as money coming in.
+- **The owner dashboard** — the last screen: today's takings, this month's expenses
+  and your profit, all in one view.
 - **A "void" button** for cancelling an order rather than refunding it (the engine
   already supports it).
 - **Later ideas:** charts and trends, partial refunds, per-item tax, stock tracking,
