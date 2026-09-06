@@ -224,6 +224,26 @@ export class OrdersService {
     return qb.getMany();
   }
 
+  /**
+   * Everything still needing something done to it: not yet paid, or not yet
+   * served, or both.
+   *
+   * Deliberately not filtered by date. A bill opened before midnight is still
+   * the same bill afterwards, and a floor view that dropped it at the day
+   * boundary would hide a table that is still sitting there. Oldest first,
+   * because that is the one that has been waiting longest.
+   */
+  findOpen(shopId: string): Promise<Order[]> {
+    return this.ordersRepository
+      .createQueryBuilder('order')
+      .leftJoinAndSelect('order.items', 'items')
+      .where('order.shop_id = :shopId', { shopId })
+      .andWhere('order.status = :status', { status: OrderStatus.COMPLETED })
+      .andWhere('(order.is_paid = false OR order.is_served = false)')
+      .orderBy('order.createdAt', 'ASC')
+      .getMany();
+  }
+
   async findOne(id: string, shopId: string): Promise<Order> {
     const order = await this.ordersRepository.findOne({
       where: { id, shopId },

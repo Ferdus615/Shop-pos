@@ -46,6 +46,16 @@ export class OrdersController {
     return this.ordersService.getSalesSummary(shopId, query.date);
   }
 
+  /**
+   * The floor view's list: still unpaid, still unserved, or both. Declared
+   * before ':id' so the literal path wins.
+   */
+  @Get('open')
+  @ApiOperation({ summary: 'Orders still to be served or settled' })
+  findOpen(@CurrentShop() shopId: string) {
+    return this.ordersService.findOpen(shopId);
+  }
+
   @Get()
   @ApiOperation({ summary: 'List orders, filterable by date range' })
   findAll(@Query() query: QueryOrdersDto, @CurrentShop() shopId: string) {

@@ -278,6 +278,62 @@ describe('OrdersService — tables, paying and serving', () => {
     });
   });
 
+  describe('findOpen', () => {
+    function buildQueryHarness() {
+      const calls: { where: string; params?: unknown }[] = [];
+      const qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn((w: string, p?: unknown) => {
+          calls.push({ where: w, params: p });
+          return qb;
+        }),
+        andWhere: jest.fn((w: string, p?: unknown) => {
+          calls.push({ where: w, params: p });
+          return qb;
+        }),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      const orders = {
+        createQueryBuilder: jest.fn(() => qb),
+      } as unknown as Repository<Order>;
+      return {
+        service: new OrdersService(orders, {} as unknown as DataSource),
+        qb,
+        calls,
+      };
+    }
+
+    it('asks for orders that are unpaid or unserved, scoped to the shop', async () => {
+      const { service, calls } = buildQueryHarness();
+
+      await service.findOpen(SHOP);
+
+      const clauses = calls.map((c) => c.where).join(' ');
+      expect(clauses).toContain('order.shop_id = :shopId');
+      expect(clauses).toContain(
+        '(order.is_paid = false OR order.is_served = false)',
+      );
+      expect(calls.some((c) => c.where.includes('order.status'))).toBe(true);
+    });
+
+    it('is not filtered by date, so a bill outlives midnight', async () => {
+      const { service, calls } = buildQueryHarness();
+
+      await service.findOpen(SHOP);
+
+      expect(calls.some((c) => c.where.includes('createdAt'))).toBe(false);
+    });
+
+    it('puts the longest-waiting order first', async () => {
+      const { service, qb } = buildQueryHarness();
+
+      await service.findOpen(SHOP);
+
+      expect(qb.orderBy).toHaveBeenCalledWith('order.createdAt', 'ASC');
+    });
+  });
+
   describe('serve', () => {
     it('marks the food served and stamps when', async () => {
       const { service, saved } = buildOrderHarness({});
