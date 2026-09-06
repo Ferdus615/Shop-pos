@@ -97,6 +97,7 @@ function buildPeriod(
     totalSales: number;
     byPaymentMethod: PeriodOverview['sales']['byPaymentMethod'];
     topItems: PeriodOverview['sales']['topItems'];
+    itemsSold: PeriodOverview['sales']['itemsSold'];
   },
   expenses: {
     expenseCount: number;
@@ -114,6 +115,7 @@ function buildPeriod(
         sales.orderCount > 0 ? round2(sales.totalSales / sales.orderCount) : 0,
       byPaymentMethod: sales.byPaymentMethod,
       topItems: sales.topItems,
+      itemsSold: sales.itemsSold,
     },
     expenses: {
       expenseCount: expenses.expenseCount,

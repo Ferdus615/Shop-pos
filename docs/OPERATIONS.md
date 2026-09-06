@@ -95,6 +95,28 @@ the schema is created by TypeORM `synchronize`; in production, run migrations fi
 
 ---
 
+## 3b. One-off data step: paid/served backfill
+
+The dine-in change added `is_paid` / `is_served` to `orders`, defaulting to **false**.
+Orders recorded before it were rung up under the old flow, where saving a sale meant
+the money had been taken and the food served — so on any environment that has existing
+orders, they must be backfilled once or they will read as unpaid and drop out of every
+sales figure:
+
+```sql
+update orders
+   set is_paid = true, paid_at = created_at,
+       is_served = true, served_at = created_at
+ where is_paid = false
+   and status = 'COMPLETED';
+```
+
+Voided and refunded orders are deliberately left alone: they are excluded from takings
+by status either way. This was already run against the development database (27 rows).
+
+> This is the kind of step a migration would carry. Because the project has no
+> committed migrations yet (see §4), it has to be applied by hand per environment.
+
 ## 4. Schema management
 
 **Development** uses TypeORM `synchronize: true` (derived from `NODE_ENV !==

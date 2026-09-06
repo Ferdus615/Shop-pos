@@ -11,11 +11,28 @@ import { DashboardService } from './dashboard.service';
 describe('DashboardService.getOverview', () => {
   const SHOP = 'shop-1';
 
-  const sales = (totalSales: number, orderCount: number) => ({
+  const soldItem = (
+    name: string,
+    quantitySold: number,
+    categoryName = 'Uncategorized',
+  ) => ({
+    name,
+    categoryId: categoryName === 'Uncategorized' ? null : categoryName,
+    categoryName,
+    quantitySold,
+    revenue: quantitySold * 100,
+  });
+
+  const sales = (
+    totalSales: number,
+    orderCount: number,
+    itemsSold: ReturnType<typeof soldItem>[] = [],
+  ) => ({
     orderCount,
     totalSales,
     byPaymentMethod: [],
-    topItems: [],
+    topItems: itemsSold.slice(0, 5),
+    itemsSold,
   });
   const expenses = (totalExpenses: number, expenseCount: number) => ({
     expenseCount,
@@ -25,7 +42,7 @@ describe('DashboardService.getOverview', () => {
 
   function buildService(
     overrides: {
-      daySales?: { orderCount: number; totalSales: number };
+      daySales?: ReturnType<typeof sales>;
       salesSeries?: { month: string; orderCount: number; totalSales: number }[];
       expenseSeries?: {
         month: string;
@@ -156,6 +173,23 @@ describe('DashboardService.getOverview', () => {
       totalExpenses: 800,
       netProfit: -800,
     });
+  });
+
+  it('passes the whole sold-item list through, not only the best sellers', async () => {
+    const itemsSold = [
+      soldItem('Tea', 40, 'Drinks'),
+      soldItem('Samosa', 30, 'Snacks'),
+      soldItem('Coffee', 20, 'Drinks'),
+      soldItem('Roll', 10, 'Snacks'),
+      soldItem('Cake', 5, 'Bakery'),
+      soldItem('Water', 1),
+    ];
+    const service = buildService({ daySales: sales(1000, 4, itemsSold) });
+
+    const { periods } = await service.getOverview(SHOP, '2026-09-06');
+    expect(periods.day.sales.itemsSold).toEqual(itemsSold);
+    // The ranking is the head of that same list, so the two cannot disagree.
+    expect(periods.day.sales.topItems).toEqual(itemsSold.slice(0, 5));
   });
 
   it('still serves the original today / monthToDate fields', async () => {

@@ -15,9 +15,9 @@ This complements the other docs:
 
 - **Backend:** ✅ Complete for every planned feature, plus multi-tenancy, refunds and
   the print queue.
-- **Frontend:** 🟡 Every planned screen is built — till, sales, menu, expenses,
-  staff, shops and the owner dashboard, which is where owners now land. Only the void
-  action remains.
+- **Frontend:** ✅ Every planned screen and action is built — till, sales (with void
+  and refund), menu, expenses, staff, shops, and the owner dashboard, which is where
+  owners land.
 - **Print bridge:** ✅ Complete and verified against live hardware.
 
 | Feature | Backend API | Frontend UI |
@@ -26,10 +26,12 @@ This complements the other docs:
 | Multi-tenancy — shops, platform administrator | ✅ Done | ✅ Done |
 | Menu management (categories + items) | ✅ Done | ✅ Done |
 | POS — ring up sales | ✅ Done | ✅ Done |
+| Table numbers + one bill per open table | ✅ Done | ✅ Done |
+| Mark orders done (served) and paid | ✅ Done | ✅ Done |
 | Sales tracking (daily) | ✅ Done | ✅ Done |
 | Staff / user management | ✅ Done | ✅ Done |
 | Refund an order | ✅ Done | ✅ Done |
-| Void an order | ✅ Done | ⬜ To do |
+| Void an order | ✅ Done | ✅ Done |
 | Bluetooth receipt printing (print bridge) | ✅ Done | ✅ Done |
 | Expense tracking (monthly) | ✅ Done | ✅ Done |
 | Owner dashboard (day / month / year + trend) | ✅ Done | ✅ Done |
@@ -56,6 +58,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started
 - **Orders (POS)** — server-side pricing inside a transaction, duplicate-line merging,
   name/price snapshots, per-shop order numbering, list with date and status filters,
   void and refund.
+- **Dine-in** — orders carry a table number and start unpaid/unserved; a table's second
+  round is appended to its open bill until it is settled; paying confirms the method
+  actually used and stamps `paidAt`; serving toggles independently. Takings count paid
+  orders only, with what is still owed reported separately.
 - **Sales tracking** — daily summary: total, order count, payment-method breakdown, top
   five items.
 - **Expenses** — categories and expenses CRUD, monthly summary with per-category
@@ -112,7 +118,8 @@ Verified with headless-browser (Playwright) smoke tests.
 - **Menu management** (`/menu`, owner) — full CRUD for categories and items.
 - **Sales tracking** (`/sales`, owner) — date picker defaulting to today, total sales,
   order count, average order value, payment-method breakdown, top items, the day's
-  orders, order detail, and refund.
+  orders, order detail, and both **void** and **refund** on a completed order — each
+  behind a confirmation, since neither can be undone.
 - **Staff** (`/staff`, owner) — list users, create staff accounts, edit, deactivate.
 - **Shops** (`/admin/shops`, platform admin) — list shops, create a shop with its owner,
   edit details, suspend and reactivate.
@@ -136,10 +143,15 @@ Verified with headless-browser (Playwright) smoke tests.
 
 ## 3. To do
 
-### Frontend — remaining (the backend already supports all of these)
+### Known gaps in the new dine-in flow
 
-1. **Void an order** — an owner action in the sales order list, alongside refund,
-   calling `POST /orders/:id/void`.
+- **No open-tables view.** The Sales list with its Unpaid/Waiting tabs is the worklist;
+  a screen grouped by table would suit a busy floor better.
+- **`paidAt` / `servedAt` are recorded but never shown.** They are there so
+  "how long from order to served" is available later without a migration.
+- **The manual "Print receipt" icon still uses the browser dialog**, while the receipt
+  printed at payment goes through the bridge to the thermal printer.
+- **One table, one open bill.** Splitting a bill between customers is not supported.
 
 ### Polish
 
@@ -207,8 +219,9 @@ day — are covered in the [OPERATIONS.md runbook](OPERATIONS.md#9-runbook).
 
 ## 5. Suggested next step
 
-Phase 2's screens are all built. The one cheap finishing touch left is the **void
-action** in the sales list. After that, the highest-value work is engineering rather
-than features: commit the initial migration, and turn the browser suites used to
-verify expenses, the role guard, the landing routes and the dashboard into a committed
-test run.
+Phase 2 is complete — every planned screen and action is built and verified. The
+highest-value work now is engineering rather than features: commit the initial
+migration (the schema has still only ever come from `synchronize`), and turn the
+browser suites used to verify expenses, the role guard, the landing routes, the
+dashboard and void/refund into a committed test run so they survive as regression
+cover.

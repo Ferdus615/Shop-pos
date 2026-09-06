@@ -18,6 +18,7 @@ import {
 } from '../common/utils/date.util';
 import { MenuItem } from '../menu/entities/menu-item.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { PayOrderDto } from './dto/pay-order.dto';
 import { QueryOrdersDto } from './dto/query-orders.dto';
 import { OrderItem } from './entities/order-item.entity';
 import { Order } from './entities/order.entity';
@@ -26,8 +27,14 @@ import {
   PaymentMethodBreakdown,
   SalesAggregate,
   SalesSummary,
-  TopSellingItem,
+  SoldItem,
 } from './interfaces/sales-summary.interface';
+
+/** How many best sellers the summaries lead with. */
+const TOP_ITEM_COUNT = 5;
+
+/** Label for items sold under no category, or whose menu item is gone. */
+const UNCATEGORIZED = 'Uncategorized';
 
 @Injectable()
 export class OrdersService {
@@ -99,15 +106,73 @@ export class OrdersService {
       }
       const total = round2(subtotal - discount + tax);
 
+      const tableNumber = dto.tableNumber?.trim() || null;
+
+      // A table that still owes money keeps one bill: a second round of
+      // ordering is added to it rather than starting a rival bill nobody
+      // would think to settle. Once the table has paid, the next round is a
+      // new order — which is what makes "two rounds, two bills" true only
+      // when the first one is already closed.
+      const openBill = tableNumber
+        ? await this.findOpenBill(manager, shopId, tableNumber)
+        : null;
+
+      if (openBill) {
+        // New lines are appended rather than merged into the existing ones:
+        // the kitchen needs to see this round on its own, and the bill reads
+        // as the sequence of what was actually ordered.
+        for (const item of orderItems) {
+          item.orderId = openBill.id;
+        }
+        await manager.save(orderItems);
+
+        const nextSubtotal = round2(openBill.subtotal + subtotal);
+        const nextDiscount = round2(openBill.discount + discount);
+        const nextTax = round2(openBill.tax + tax);
+        if (nextDiscount > nextSubtotal) {
+          throw new BadRequestException('Discount cannot exceed the subtotal');
+        }
+
+        /**
+         * `update`, not `save`.
+         *
+         * `items` is an eager, cascading relation, so the bill arrived with
+         * its lines already loaded — the lines as they were *before* this
+         * round. Saving the entity would cascade that stale array and detach
+         * the rows just inserted, leaving a bill that charges the new total
+         * against the old lines. Updating the columns touches no relation.
+         */
+        await manager.update(Order, openBill.id, {
+          subtotal: nextSubtotal,
+          discount: nextDiscount,
+          tax: nextTax,
+          total: round2(nextSubtotal - nextDiscount + nextTax),
+          // Serving starts again: this round has not gone out yet.
+          isServed: false,
+          servedAt: null,
+        });
+
+        const updated = await manager.findOneOrFail(Order, {
+          where: { id: openBill.id },
+        });
+        updated.appendedToOpenBill = true;
+        return updated;
+      }
+
       const order = manager.create(Order, {
         shopId,
         orderNumber: await this.generateOrderNumber(manager, shopId),
+        tableNumber,
         subtotal,
         discount,
         tax,
         total,
         paymentMethod: dto.paymentMethod,
         status: OrderStatus.COMPLETED,
+        // Orders start unpaid and unserved: the money is taken and the food
+        // goes out after the ring-up, each marked when it actually happens.
+        isPaid: false,
+        isServed: false,
         createdById: userId,
         items: orderItems,
       });
@@ -169,10 +234,20 @@ export class OrdersService {
     return order;
   }
 
+  /**
+   * Voids an order: it should never have been rung up. The record stays and
+   * only the status changes, so a mis-punch stays distinguishable from a
+   * refund — which is exactly why a refund cannot be overwritten with a void.
+   */
   async void(id: string, shopId: string): Promise<Order> {
     const order = await this.findOne(id, shopId);
     if (order.status === OrderStatus.VOIDED) {
       throw new BadRequestException('Order is already voided');
+    }
+    if (order.status === OrderStatus.REFUNDED) {
+      throw new BadRequestException(
+        'Cannot void a refunded order — the money has already been returned',
+      );
     }
     order.status = OrderStatus.VOIDED;
     return this.ordersRepository.save(order);
@@ -187,6 +262,81 @@ export class OrdersService {
       throw new BadRequestException('Cannot refund a voided order');
     }
     order.status = OrderStatus.REFUNDED;
+    return this.ordersRepository.save(order);
+  }
+
+  /**
+   * The table's unsettled bill, if it has one. Voided and refunded orders are
+   * not bills anyone can add to, and a paid one is closed.
+   */
+  private findOpenBill(
+    manager: EntityManager,
+    shopId: string,
+    tableNumber: string,
+  ): Promise<Order | null> {
+    return manager.findOne(Order, {
+      where: {
+        shopId,
+        tableNumber,
+        isPaid: false,
+        status: OrderStatus.COMPLETED,
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Takes the money. The payment method is confirmed here rather than at
+   * ring-up, because for a table that settles later this is the first moment
+   * anyone knows how they actually paid.
+   */
+  async pay(id: string, dto: PayOrderDto, shopId: string): Promise<Order> {
+    const order = await this.findOne(id, shopId);
+    if (order.status !== OrderStatus.COMPLETED) {
+      throw new BadRequestException(
+        `A ${order.status.toLowerCase()} order cannot be paid`,
+      );
+    }
+    if (order.isPaid) {
+      throw new BadRequestException('Order is already paid');
+    }
+    if (dto.paymentMethod) {
+      order.paymentMethod = dto.paymentMethod;
+    }
+    order.isPaid = true;
+    order.paidAt = new Date();
+    return this.ordersRepository.save(order);
+  }
+
+  /**
+   * Undoes a payment marked by mistake. Owner-only, and deliberately not a
+   * refund: no money went back, the button was simply pressed in error.
+   */
+  async unpay(id: string, shopId: string): Promise<Order> {
+    const order = await this.findOne(id, shopId);
+    if (!order.isPaid) {
+      throw new BadRequestException('Order is not marked paid');
+    }
+    order.isPaid = false;
+    order.paidAt = null;
+    return this.ordersRepository.save(order);
+  }
+
+  /** Marks the food as served, or takes that back if it was premature. */
+  async setServed(id: string, served: boolean, shopId: string): Promise<Order> {
+    const order = await this.findOne(id, shopId);
+    if (order.status !== OrderStatus.COMPLETED) {
+      throw new BadRequestException(
+        `A ${order.status.toLowerCase()} order cannot be served`,
+      );
+    }
+    if (order.isServed === served) {
+      throw new BadRequestException(
+        served ? 'Order is already served' : 'Order is not marked served',
+      );
+    }
+    order.isServed = served;
+    order.servedAt = served ? new Date() : null;
     return this.ordersRepository.save(order);
   }
 
@@ -237,6 +387,7 @@ export class OrdersService {
       .addSelect('COALESCE(SUM(order.total), 0)', 'totalSales')
       .where('order.shop_id = :shopId', { shopId })
       .andWhere('order.status = :status', { status: OrderStatus.COMPLETED })
+      .andWhere('order.is_paid = true')
       .andWhere('order.createdAt BETWEEN :start AND :end', { start, end })
       .setParameter('tz', APP_TIME_ZONE)
       .groupBy('month')
@@ -259,7 +410,8 @@ export class OrdersService {
 
   /**
    * The shared aggregate behind the daily, monthly and yearly views: totals,
-   * the payment-method split, and the five best sellers over one range.
+   * the payment-method split, and everything sold over one range. The best
+   * sellers are the head of that same list, so both always agree.
    */
   private async aggregateSales(
     shopId: string,
@@ -272,8 +424,22 @@ export class OrdersService {
       .addSelect('COALESCE(SUM(order.total), 0)', 'totalSales')
       .where('order.shop_id = :shopId', { shopId })
       .andWhere('order.status = :status', { status: OrderStatus.COMPLETED })
+      .andWhere('order.is_paid = true')
       .andWhere('order.createdAt BETWEEN :start AND :end', { start, end })
       .getRawOne<{ orderCount: string; totalSales: string }>();
+
+    // What has been rung up and not settled. Deliberately a separate figure
+    // from takings rather than folded into them: the owner asked for sales to
+    // mean money received, and this is money still owed.
+    const outstanding = await this.ordersRepository
+      .createQueryBuilder('order')
+      .select('COUNT(*)', 'unpaidOrderCount')
+      .addSelect('COALESCE(SUM(order.total), 0)', 'unpaidTotal')
+      .where('order.shop_id = :shopId', { shopId })
+      .andWhere('order.status = :status', { status: OrderStatus.COMPLETED })
+      .andWhere('order.is_paid = false')
+      .andWhere('order.createdAt BETWEEN :start AND :end', { start, end })
+      .getRawOne<{ unpaidOrderCount: string; unpaidTotal: string }>();
 
     const paymentRows = await this.ordersRepository
       .createQueryBuilder('order')
@@ -282,6 +448,7 @@ export class OrdersService {
       .addSelect('COALESCE(SUM(order.total), 0)', 'total')
       .where('order.shop_id = :shopId', { shopId })
       .andWhere('order.status = :status', { status: OrderStatus.COMPLETED })
+      .andWhere('order.is_paid = true')
       .andWhere('order.createdAt BETWEEN :start AND :end', { start, end })
       .groupBy('order.payment_method')
       .getRawMany<{
@@ -290,19 +457,36 @@ export class OrdersService {
         total: string;
       }>();
 
-    const topRows = await this.ordersRepository
+    // Every line sold in the range, not just the leaders: the owner needs the
+    // whole list, and a category can only be excluded from the ranking if the
+    // rows carry their category. The menu item may since have been deleted,
+    // which is why both joins are left joins and the name is the snapshot.
+    const itemRows = await this.ordersRepository
       .createQueryBuilder('order')
       .innerJoin('order.items', 'item')
+      .leftJoin('item.menuItem', 'menuItem')
+      .leftJoin('menuItem.category', 'category')
       .select('item.name_snapshot', 'name')
+      .addSelect('category.id', 'categoryId')
+      .addSelect('category.name', 'categoryName')
       .addSelect('SUM(item.quantity)', 'quantitySold')
       .addSelect('SUM(item.line_total)', 'revenue')
       .where('order.shop_id = :shopId', { shopId })
       .andWhere('order.status = :status', { status: OrderStatus.COMPLETED })
+      .andWhere('order.is_paid = true')
       .andWhere('order.createdAt BETWEEN :start AND :end', { start, end })
       .groupBy('item.name_snapshot')
+      .addGroupBy('category.id')
+      .addGroupBy('category.name')
       .orderBy('"quantitySold"', 'DESC')
-      .limit(5)
-      .getRawMany<{ name: string; quantitySold: string; revenue: string }>();
+      .addOrderBy('"revenue"', 'DESC')
+      .getRawMany<{
+        name: string;
+        categoryId: string | null;
+        categoryName: string | null;
+        quantitySold: string;
+        revenue: string;
+      }>();
 
     const byPaymentMethod: PaymentMethodBreakdown[] = paymentRows.map(
       (row) => ({
@@ -312,8 +496,10 @@ export class OrdersService {
       }),
     );
 
-    const topItems: TopSellingItem[] = topRows.map((row) => ({
+    const itemsSold: SoldItem[] = itemRows.map((row) => ({
       name: row.name,
+      categoryId: row.categoryId ?? null,
+      categoryName: row.categoryName ?? UNCATEGORIZED,
       quantitySold: Number(row.quantitySold),
       revenue: round2(Number(row.revenue)),
     }));
@@ -321,8 +507,11 @@ export class OrdersService {
     return {
       orderCount: Number(totals?.orderCount ?? 0),
       totalSales: round2(Number(totals?.totalSales ?? 0)),
+      unpaidOrderCount: Number(outstanding?.unpaidOrderCount ?? 0),
+      unpaidTotal: round2(Number(outstanding?.unpaidTotal ?? 0)),
       byPaymentMethod,
-      topItems,
+      topItems: itemsSold.slice(0, TOP_ITEM_COUNT),
+      itemsSold,
     };
   }
 
@@ -334,6 +523,7 @@ export class OrdersService {
       .select('COALESCE(SUM(order.total), 0)', 'total')
       .where('order.shop_id = :shopId', { shopId })
       .andWhere('order.status = :status', { status: OrderStatus.COMPLETED })
+      .andWhere('order.is_paid = true')
       .andWhere('order.createdAt BETWEEN :start AND :end', { start, end })
       .getRawOne<{ total: string }>();
     return round2(Number(row?.total ?? 0));

@@ -2,6 +2,7 @@ import { ExpenseCategoryBreakdown } from '../../expenses/interfaces/expense-summ
 import {
   PaymentMethodBreakdown,
   SalesSummary,
+  SoldItem,
   TopSellingItem,
 } from '../../orders/interfaces/sales-summary.interface';
 
@@ -15,6 +16,8 @@ export interface PeriodOverview {
     averageOrderValue: number;
     byPaymentMethod: PaymentMethodBreakdown[];
     topItems: TopSellingItem[];
+    /** Every item sold in the period and how many — not just the top few. */
+    itemsSold: SoldItem[];
   };
   expenses: {
     expenseCount: number;

@@ -167,6 +167,7 @@ function renderReceipt(payload, config) {
 
   slip.cmd(CMD.alignLeft).rule('=');
   slip.text(('Order ' + (payload.orderNumber || '')).trim());
+  if (payload.tableNumber) slip.text('Table ' + payload.tableNumber);
   slip.text(timestamp(payload.createdAt));
   slip.rule('=');
 
@@ -214,9 +215,16 @@ function renderKitchenTicket(payload, config) {
 
   slip.cmd(CMD.alignCenter, CMD.boldOn);
   slip.text('KITCHEN ORDER');
+  // The table is what the kitchen and the runner actually need, so it takes
+  // the double-width line; the order number drops to a normal one.
   slip.size(2, 2);
-  slip.text(String(payload.orderNumber || ''));
+  slip.text(
+    payload.tableNumber
+      ? 'TABLE ' + payload.tableNumber
+      : String(payload.orderNumber || ''),
+  );
   slip.size(1, 1).cmd(CMD.boldOff);
+  if (payload.tableNumber) slip.text(String(payload.orderNumber || ''));
   slip.text(timestamp(payload.createdAt));
 
   slip.cmd(CMD.alignLeft).rule('=');

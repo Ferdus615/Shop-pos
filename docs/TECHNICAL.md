@@ -159,9 +159,11 @@ Notable columns:
 - **MenuCategory** — `id`, `shopId`, `name`, `description`.
 - **MenuItem** — `id`, `shopId`, `name`, `description`, `price` (numeric),
   `isAvailable`, `imageUrl`, `categoryId` (FK, `ON DELETE SET NULL`).
-- **Order** — `id`, `shopId`, `orderNumber` (unique **per shop**), `subtotal`,
-  `discount`, `tax`, `total` (numeric), `paymentMethod`, `status`, `createdById`,
-  `items[]` (eager, cascading), timestamps.
+- **Order** — `id`, `shopId`, `orderNumber` (unique **per shop**), `tableNumber`
+  (nullable — `NULL` is a counter/takeaway sale), `subtotal`, `discount`, `tax`,
+  `total` (numeric), `paymentMethod`, `status`, `isPaid` + `paidAt`, `isServed` +
+  `servedAt`, `createdById`, `items[]` (eager, cascading), timestamps. Indexed on
+  `(shopId, tableNumber, isPaid)` for the open-bill lookup.
 - **OrderItem** — `id`, `orderId`, `menuItemId` (nullable), `nameSnapshot`,
   `unitPrice`, `quantity`, `lineTotal`.
 - **ExpenseCategory** — `id`, `shopId`, `name` (unique per shop).
@@ -243,12 +245,48 @@ Enums: `Role`; `PaymentMethod` (`CASH`, `BKASH`, `NAGAD`); `OrderStatus`
 The `(shop_id, order_number)` unique index guards the numbering against concurrent
 checkouts.
 
+### Dine-in: tables, paying and serving
+
+Ringing up does not take money. An order is created **unpaid and unserved**, and the
+two are tracked separately (`isPaid`/`isServed`) because they happen at different
+moments and in either order: food can go out before the bill is settled, and a bill
+can be settled before the last dish arrives.
+
+- **Takings mean money received.** Every sales aggregate — daily, monthly, yearly, the
+  dashboard trend — counts `status = COMPLETED AND is_paid = true`. What has been rung
+  up and not settled is reported separately as `unpaidOrderCount` / `unpaidTotal`, so
+  the day's total does not move as tables settle up.
+- **A table keeps one bill.** `POST /orders` with a `tableNumber` looks for that
+  table's unpaid, un-voided order and **appends** the new lines to it, recomputing the
+  totals and reopening serving; the response carries `appendedToOpenBill`. Once the
+  table has paid, the next round starts a fresh order — so "two rounds, two bills" is
+  true only when the first is already closed. Lines are appended rather than merged so
+  the kitchen sees each round on its own.
+- **The append uses `update`, never `save`.** `items` is an eager, cascading relation,
+  so the bill arrives with its lines as they were *before* the round; saving the entity
+  would cascade that stale array and detach the rows just inserted, leaving a bill that
+  charges the new total against the old lines. Same class of trap as the expense
+  category relation — see §7 there.
+- **Payment method is confirmed at payment**, not at ring-up: `POST /orders/:id/pay`
+  takes the method actually used, which for a table that settles later is the first
+  moment anyone knows it. `POST /orders/:id/unpay` corrects a mis-click and is
+  owner-only — it is not a refund, since no money moved.
+- **Serving toggles**: `POST /orders/:id/serve` and `/unserve`.
+- Paying and serving are **staff work**, so those endpoints and the sales page are open
+  to `STAFF`; void, refund and unpay stay `OWNER`.
+
 ### Void and refund — `POST /orders/:id/void`, `POST /orders/:id/refund`
 
-Owner-only status transitions on an existing order; neither deletes anything. An order
-cannot be voided twice, refunded twice, or refunded after being voided. Only
+Owner-only status transitions on an existing order; neither deletes anything. Only
 `COMPLETED` orders count towards sales reporting, so either action removes the order
 from the day's takings while leaving the record intact.
+
+The two carry different meanings — void is a mis-punch that should never have counted,
+refund is money handed back — and the status is the only record of which it was, so
+neither may overwrite the other: an order cannot be voided twice, refunded twice,
+refunded after being voided, or **voided after being refunded**. The UI offers both
+actions only on a `COMPLETED` order, each behind a confirmation, since neither is
+reversible. `orders.service.spec.ts` pins every transition.
 
 ### Daily sales summary — `GET /orders/summary?date=`
 
@@ -370,6 +408,10 @@ slip to a bitmap and sending it as a raster image (`GS v 0`) — a change in
   forbidden page never mounts or fires its requests. A `SUPER_ADMIN` is kept to
   `/admin/*`. Unlisted paths are allowed through so a genuine 404 still renders.
   This is a convenience — the API enforces the same rules independently.
+- **Role split.** Staff work the till, the sales page (settling and serving) and read
+  the menu; the dashboard, expenses and staff pages are the owner's. The menu page
+  hides its editing controls from staff because the API refuses their writes, and the
+  sales page hides void/refund from them for the same reason.
 - **One landing rule.** `homeFor(role)` in the same module decides where each role
   starts — `/dashboard` for an owner, `/pos` for staff, `/admin/*` for a platform
   admin — and login, the root route and the guard's redirect all call it, so the

@@ -23,16 +23,18 @@ Add the things you sell, grouped into categories (for example "Beverages", "Snac
 Each item has a name, a price, a description, an optional photo, and a switch for
 whether it's currently available. You can change prices any time.
 
-### 2. Ring up sales
+### 2. Ring up an order
 
-Pick what the customer is buying and how many of each, choose how they paid — **cash,
-bKash or Nagad** — and the app:
+Pick what the customer is buying and how many of each, put in the **table number**
+(leave it empty for a counter or takeaway sale), and send the order. The kitchen ticket
+prints straight away with the table in big letters.
 
-- adds everything up,
-- applies any discount you enter,
-- records the sale with a receipt number and a timestamp.
+Nothing is treated as money yet — the order goes on the Sales list as **unpaid** and
+**waiting**. You never do the maths; it always uses your current menu prices.
 
-You never do the maths. It always uses your current menu prices.
+**If the table orders again before paying**, the new items join the same bill rather
+than starting a second one, so there is only ever one bill to settle per table. Once
+they have paid, the next round starts a fresh bill.
 
 ### 3. Print receipts
 
@@ -47,28 +49,59 @@ The app tells you which happened. One note: thermal printers can only print Lati
 letters and numbers, so Bengali item names come out as `?` — for now, give items Latin
 names on the menu.
 
-### 4. See your daily sales
+### 4. Mark orders done and paid
+
+The Sales list is the working list for the floor. Each order shows two things at once:
+
+- **Done / Waiting** — whether the food has gone out.
+- **Paid / Unpaid** — whether the money has been taken.
+
+They are separate on purpose: food often goes out long before the bill is settled, and
+sometimes the other way round. Tap **Done** when the food is served, and **Paid** when
+they pay — that asks how they paid (cash, bKash or Nagad), works out the change if it
+is cash, and prints the customer's receipt.
+
+The tabs at the top of the list cut it down to **Unpaid** or **Waiting**, so you can
+see at a glance what still needs doing. Your staff can work this list too.
+
+### 5. See your daily sales
 
 Pick any day (it opens on today) and see:
 
-- how much money you took,
-- how many orders you had,
+- **Collected** — money actually taken that day,
+- **Unpaid** — rung up but not settled yet, shown apart in amber so it is never
+  mistaken for takings,
+- how many paid orders and the average,
 - how customers paid,
 - your best-selling items,
 - every order from that day, with the details of each.
 
-### 5. Refund an order
+Your sales figure only counts money you have actually received, which is why an unpaid
+table does not move it.
 
-If something has to be given back, refund the order from the sales list. Nothing is
-deleted — the record stays, and the money comes back out of the day's total, so your
-figures stay honest.
+### 6. Cancel a sale: void or refund
 
-### 6. Manage your staff
+Open any order from the sales list and you get two choices, because two different
+things can go wrong:
+
+- **Void** — the sale should never have been rung up: wrong buttons pressed, the
+  customer changed their mind before you handed anything over, or someone was testing
+  the till.
+- **Refund** — the sale did happen and you gave the money back.
+
+Both take the order out of that day's takings, and neither deletes anything: the order
+stays on record, marked "Voided" or "Refunded". Keeping them apart matters at
+month-end — "we mis-punched four orders" tells a very different story from "we refunded
+four customers".
+
+Each one asks you to confirm first, because neither can be undone.
+
+### 7. Manage your staff
 
 Add an account for each person who works the till, and switch it off when they leave.
 Their past sales stay on record.
 
-### 7. Track your expenses
+### 8. Track your expenses
 
 Record what you spend — rent, supplies, bills — sorted into your own categories.
 **Every new expense starts with its category**: the dialog asks for it first and will
@@ -79,7 +112,7 @@ The Expenses screen opens on this month and shows your total, how many entries t
 are, your biggest category, and what each category cost you. Pick another month from
 the month box to look back.
 
-### 8. Owner dashboard
+### 9. Owner dashboard
 
 The screen you land on when you sign in. It answers "how is the shop doing?" over
 three spans at once — **today, this month, and this year**:
@@ -88,7 +121,11 @@ three spans at once — **today, this month, and this year**:
 - tap one to see that span in full: sales, number of orders, average sale, what you
   spent, and your profit;
 - where the money went, by expense category, and how customers paid;
-- your best sellers for that span;
+- your best sellers for that span, with a button per category so you can leave a
+  category (drinks, say) out of the ranking — hiding it changes nothing about the
+  takings, only which items compete for the top spots, and the choice is remembered
+  on your device;
+- the full list of everything sold in that span and how many of each;
 - a **month-by-month chart** of the whole year — takings beside spending, so a bad
   month is visible at a glance. Hover a month for its exact figures, or press "View as
   table" if you would rather read the numbers.
@@ -102,9 +139,9 @@ Three kinds of login:
 
 - **Owner (you)** — everything: the till, the menu, sales figures, expenses, and staff
   accounts.
-- **Staff** — can ring up sales and see the menu, but **cannot** see your sales totals,
-  change prices, or touch expenses. Your business numbers stay private while your staff
-  serve customers.
+- **Staff** — work the till, the Sales list (marking orders done and paid) and can
+  read the menu. They **cannot** change prices, see the dashboard, touch expenses, or
+  manage accounts — and they cannot void or refund an order, which stays your call.
 - **System administrator** — the person who set the platform up. They can create a new
   shop and switch one off, but they **cannot** see any shop's menu, sales or money. Not
   yours, not anyone's.
