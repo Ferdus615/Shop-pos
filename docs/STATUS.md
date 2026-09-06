@@ -1,6 +1,6 @@
 # Shop POS — Project Status
 
-_What's built, what's verified, and what's left. Last updated: 2026-08-31._
+_What's built, what's verified, and what's left. Last updated: 2026-09-06._
 
 This complements the other docs:
 - [PLANNING.md](PLANNING.md) — the plan and the "why" behind each feature
@@ -15,8 +15,8 @@ This complements the other docs:
 
 - **Backend:** ✅ Complete for every planned feature, plus multi-tenancy, refunds and
   the print queue.
-- **Frontend:** 🟡 The till and the owner's day-to-day screens are done; expenses and
-  the dashboard remain.
+- **Frontend:** 🟡 The till, expenses and the owner's day-to-day screens are done;
+  the dashboard remains.
 - **Print bridge:** ✅ Complete and verified against live hardware.
 
 | Feature | Backend API | Frontend UI |
@@ -30,7 +30,7 @@ This complements the other docs:
 | Refund an order | ✅ Done | ✅ Done |
 | Void an order | ✅ Done | ⬜ To do |
 | Bluetooth receipt printing (print bridge) | ✅ Done | ✅ Done |
-| Expense tracking (monthly) | ✅ Done | ⬜ To do |
+| Expense tracking (monthly) | ✅ Done | ✅ Done |
 | Owner dashboard (sales + expenses + net) | ✅ Done | ⬜ To do |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started
@@ -110,6 +110,12 @@ Verified with headless-browser (Playwright) smoke tests.
 - **Staff** (`/staff`, owner) — list users, create staff accounts, edit, deactivate.
 - **Shops** (`/admin/shops`, platform admin) — list shops, create a shop with its owner,
   edit details, suspend and reactivate.
+- **Expenses** (`/expenses`, owner) — month picker defaulting to the current month,
+  monthly total / entry count / largest category, expense CRUD with a category filter,
+  and expense-category CRUD showing each category's spend for the month (plus an
+  Uncategorized row so the totals reconcile). Verified by a 13-check browser run
+  covering create, recategorize, clear to Uncategorized, month switching, mobile
+  layout and delete.
 
 ---
 
@@ -117,14 +123,10 @@ Verified with headless-browser (Playwright) smoke tests.
 
 ### Frontend — remaining (the backend already supports all of these)
 
-1. **Expenses pages** (`/expenses`, owner-only)
-   - List expenses for a chosen month (month picker, defaults to the current month).
-   - Add / edit / delete expenses and expense categories.
-   - Monthly summary: total plus breakdown by category.
-2. **Owner dashboard** (`/dashboard`, owner-only)
+1. **Owner dashboard** (`/dashboard`, owner-only)
    - Today's sales, month-to-date sales, month-to-date expenses, net profit.
    - Likely becomes the landing page after login for owners, in place of `/pos`.
-3. **Void an order** — an owner action in the sales order list, alongside refund,
+2. **Void an order** — an owner action in the sales order list, alongside refund,
    calling `POST /orders/:id/void`.
 
 ### Polish
@@ -193,6 +195,7 @@ day — are covered in the [OPERATIONS.md runbook](OPERATIONS.md#9-runbook).
 
 ## 5. Suggested next step
 
-Build the **Expenses pages** and the **Owner dashboard**. Both are fully supported by
-the backend, and together they turn the app from a till into a complete
-sales-and-expenses tool — which is the goal the project set out with.
+Build the **Owner dashboard** — the last screen of Phase 2. Sales and expenses are
+both now captured in the UI, so the dashboard endpoint (`GET /dashboard`) has
+everything it needs to show today's takings, the month's expenses and net profit in
+one view.

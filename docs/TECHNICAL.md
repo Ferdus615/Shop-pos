@@ -1,6 +1,6 @@
 # Shop POS — Technical Documentation
 
-_Audience: developers working on the codebase. Last updated: 2026-08-31._
+_Audience: developers working on the codebase. Last updated: 2026-09-06._
 
 Companion documents: [API.md](API.md) (endpoint reference),
 [OPERATIONS.md](OPERATIONS.md) (configuration and deployment),
@@ -79,6 +79,7 @@ shop-pos/
 │   │       ├── pos/                  # till
 │   │       ├── sales/                # daily sales (owner)
 │   │       ├── menu/                 # menu CRUD (owner)
+│   │       ├── expenses/             # expenses + categories (owner)
 │   │       ├── staff/                # shop users (owner)
 │   │       └── admin/shops/          # tenants (platform admin)
 │   ├── components/                   # app-shell, providers, theme-toggle, ui/
@@ -361,8 +362,9 @@ components, deployment, migrations, backups and the operational runbook.
 - **End-to-end smoke runs** against a live backend have covered the full auth, menu,
   order-pricing, summary and RBAC flow (39 checks), and the print-queue lifecycle —
   claim exclusivity, retry/give-up, tenant isolation (22 checks).
-- **Frontend** flows (login, POS checkout, menu CRUD, sales) have been verified with
-  headless-browser smoke tests.
+- **Frontend** flows (login, POS checkout, menu CRUD, sales, expenses) have been
+  verified with headless-browser smoke tests; the expenses screen has a 13-check run
+  covering create, recategorize, clear to Uncategorized, month switching and delete.
 
 Gap worth closing: per-service unit tests and a committed Nest e2e suite, so the smoke
 runs above become repeatable in CI rather than manual.
