@@ -16,7 +16,8 @@ This complements the other docs:
 - **Backend:** ✅ Complete for every planned feature, plus multi-tenancy, refunds and
   the print queue.
 - **Frontend:** 🟡 Every planned screen is built — till, sales, menu, expenses,
-  staff, shops and the owner dashboard. Only the void action remains.
+  staff, shops and the owner dashboard, which is where owners now land. Only the void
+  action remains.
 - **Print bridge:** ✅ Complete and verified against live hardware.
 
 | Feature | Backend API | Frontend UI |
@@ -100,7 +101,10 @@ claim exclusivity, the retry/give-up path, and tenant isolation.
 
 Verified with headless-browser (Playwright) smoke tests.
 
-- **Login + session** — JWT held client-side, auto-redirect, global 401 handling.
+- **Login + session** — JWT held client-side, global 401 handling, and a per-role
+  landing route: owners open on the dashboard, staff on the till, platform admins on
+  Shops. Signing in, visiting `/`, and being redirected off a forbidden page all use
+  the same rule.
 - **Protected app shell** — role-aware sidebar and topbar, current user and shop,
   sign-out, light/dark theme.
 - **POS** (`/pos`) — item grid with category filters, cart with quantities, discount,
@@ -119,7 +123,9 @@ Verified with headless-browser (Playwright) smoke tests.
   expenses column chart with hover/keyboard readout and a table view. A loss is
   coloured and labelled, never just a negative number. Verified by a 29-check browser
   run against seeded multi-month data.
-- **Expenses** (`/expenses`, owner) — month picker defaulting to the current month,
+- **Expenses** (`/expenses`, owner) — recording starts with the category: it is the
+  first field, required, and creatable inline without leaving the dialog. Then the
+  month picker defaulting to the current month,
   monthly total / entry count / largest category, expense CRUD with a category filter,
   and expense-category CRUD showing each category's spend for the month (plus an
   Uncategorized row so the totals reconcile). Verified by a 13-check browser run
@@ -134,10 +140,6 @@ Verified with headless-browser (Playwright) smoke tests.
 
 1. **Void an order** — an owner action in the sales order list, alongside refund,
    calling `POST /orders/:id/void`.
-2. **Owner landing page** — `/pos` is still where every shop user lands after login.
-   Pointing owners at `/dashboard` instead is a one-line change in
-   `frontend/src/lib/routes.ts` (`homeFor`), left alone because it changes the
-   post-login destination for everyone with an owner account.
 
 ### Polish
 
@@ -205,8 +207,8 @@ day — are covered in the [OPERATIONS.md runbook](OPERATIONS.md#9-runbook).
 
 ## 5. Suggested next step
 
-Phase 2's screens are all built. The two cheap finishing touches are the **void
-action** in the sales list and deciding whether owners should land on `/dashboard`
-instead of `/pos`. After that, the highest-value work is engineering rather than
-features: commit the initial migration, and turn the browser suites used to verify
-expenses, the role guard and the dashboard into a committed test run.
+Phase 2's screens are all built. The one cheap finishing touch left is the **void
+action** in the sales list. After that, the highest-value work is engineering rather
+than features: commit the initial migration, and turn the browser suites used to
+verify expenses, the role guard, the landing routes and the dashboard into a committed
+test run.

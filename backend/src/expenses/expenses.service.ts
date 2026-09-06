@@ -104,7 +104,23 @@ export class ExpensesService {
     dto: UpdateExpenseDto,
     shopId: string,
   ): Promise<Expense> {
-    const expense = await this.findOne(id, shopId);
+    /**
+     * Loaded **without** the category relation, deliberately.
+     *
+     * `save()` lets a loaded relation take precedence over the FK column, and
+     * the two disagreeing is silent data loss: with the stale `category`
+     * object attached, a new `categoryId` was overwritten by the old one, and
+     * nulling the relation to force the column through wiped the category of
+     * any expense saved with its category unchanged. With no relation loaded,
+     * `categoryId` is the single source of truth.
+     */
+    const expense = await this.expensesRepository.findOne({
+      where: { id, shopId },
+    });
+    if (!expense) {
+      throw new NotFoundException('Expense not found');
+    }
+
     if (dto.categoryId) {
       await this.assertCategoryExists(dto.categoryId, shopId);
     }
@@ -112,14 +128,11 @@ export class ExpensesService {
     if (dto.amount !== undefined) expense.amount = dto.amount;
     if (dto.expenseDate !== undefined) expense.expenseDate = dto.expenseDate;
     if (dto.note !== undefined) expense.note = dto.note ?? null;
-    if (dto.categoryId !== undefined) {
-      expense.categoryId = dto.categoryId;
-      // findOne loaded the old `category`, and save lets a loaded relation win
-      // over the FK column — leaving it set would write the old id straight
-      // back, so recategorizing (and clearing) would silently do nothing.
-      expense.category = null;
-    }
-    return this.expensesRepository.save(expense);
+    if (dto.categoryId !== undefined) expense.categoryId = dto.categoryId;
+
+    await this.expensesRepository.save(expense);
+    // Re-read so the client gets the category it now belongs to.
+    return this.findOne(id, shopId);
   }
 
   async remove(id: string, shopId: string): Promise<void> {

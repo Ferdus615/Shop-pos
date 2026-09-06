@@ -256,6 +256,23 @@ Aggregates `COMPLETED` orders within the business-timezone calendar day (default
 today): order count, total sales, breakdown by payment method, and the top five items
 by quantity sold.
 
+### Recording an expense — the category comes first
+
+`POST /expenses` accepts an expense with no category, but the dialog does not: the
+category is the first field, is required, and can be created inline (the new category
+is held in local state as well as invalidated in the cache, so the just-selected id
+always has a matching option even before the refetch lands). Expenses recorded before
+this rule keep their unfiled state when edited, and stay reachable as "Uncategorized"
+in every breakdown — the rule governs new entries, not history.
+
+`ExpensesService.update` deliberately loads the expense **without** its `category`
+relation. TypeORM's `save()` lets a loaded relation take precedence over the FK
+column, and the two disagreeing is silent data loss — first writing the old category
+back over a new one, then (when the relation was nulled to force the column through)
+wiping the category of any expense saved with its category unchanged. With no relation
+loaded, `categoryId` is the single source of truth, and the handler re-reads the row so
+the client still gets the category name. `expenses.service.spec.ts` pins all of it.
+
 ### Monthly expense summary — `GET /expenses/summary?month=`
 
 Aggregates expenses within the business-timezone month (defaults to the current one):
@@ -353,6 +370,11 @@ slip to a bitmap and sending it as a raster image (`GS v 0`) — a change in
   forbidden page never mounts or fires its requests. A `SUPER_ADMIN` is kept to
   `/admin/*`. Unlisted paths are allowed through so a genuine 404 still renders.
   This is a convenience — the API enforces the same rules independently.
+- **One landing rule.** `homeFor(role)` in the same module decides where each role
+  starts — `/dashboard` for an owner, `/pos` for staff, `/admin/*` for a platform
+  admin — and login, the root route and the guard's redirect all call it, so the
+  destination is defined once. The root route is a client component precisely because
+  the session lives in the browser: the server cannot know which role is arriving.
 - **Server state via TanStack Query.** All API access goes through typed hooks in
   `src/lib/hooks.ts`, with query keys centralised in `queryKeys` and mutations
   invalidating the keys they affect. Components hold no fetching logic.

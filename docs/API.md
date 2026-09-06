@@ -347,7 +347,15 @@ All routes require **`OWNER`**.
 }
 ```
 
-`expenseDate` defaults to today; `categoryId` and `note` are optional.
+`expenseDate` defaults to today; `categoryId` and `note` are optional, and either
+can be set to `null` to clear it.
+
+> The API keeps `categoryId` optional — expenses recorded before categories existed
+> are still valid, and clearing one is a legitimate edit. It is the **UI** that
+> requires a category when recording a new expense, so nothing new lands unfiled.
+
+> On `PATCH`, only the fields you send are touched, and the response carries the
+> expense's current category. A category id belonging to another shop is a `400`.
 
 ### `GET /expenses/summary?month=YYYY-MM`
 
