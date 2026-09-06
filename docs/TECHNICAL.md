@@ -353,6 +353,11 @@ slip to a bitmap and sending it as a raster image (`GS v 0`) — a change in
   forbidden page never mounts or fires its requests. A `SUPER_ADMIN` is kept to
   `/admin/*`. Unlisted paths are allowed through so a genuine 404 still renders.
   This is a convenience — the API enforces the same rules independently.
+- **One landing rule.** `homeFor(role)` in the same module decides where each role
+  starts — `/dashboard` for an owner, `/pos` for staff, `/admin/*` for a platform
+  admin — and login, the root route and the guard's redirect all call it, so the
+  destination is defined once. The root route is a client component precisely because
+  the session lives in the browser: the server cannot know which role is arriving.
 - **Server state via TanStack Query.** All API access goes through typed hooks in
   `src/lib/hooks.ts`, with query keys centralised in `queryKeys` and mutations
   invalidating the keys they affect. Components hold no fetching logic.

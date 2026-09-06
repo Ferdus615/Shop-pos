@@ -78,8 +78,8 @@ the month box to look back.
 
 ### 8. Owner dashboard
 
-One screen that answers "how is the shop doing?" over three spans at once — **today,
-this month, and this year**:
+The screen you land on when you sign in. It answers "how is the shop doing?" over
+three spans at once — **today, this month, and this year**:
 
 - three cards at the top showing what you took in each span, and your profit for it;
 - tap one to see that span in full: sales, number of orders, average sale, what you
@@ -130,8 +130,8 @@ to can get in.
 
 - **A "void" button** for cancelling an order rather than refunding it (the engine
   already supports it).
-- **Choosing where you land** — signing in still opens the till. If you would rather
-  it opened the dashboard, that is a small change to make.
+- **Nothing outstanding for you to choose** — signing in as the owner now opens the
+  dashboard, while staff still open straight onto the till.
 - **Later ideas:** charts and trends, partial refunds, per-item tax, stock tracking,
   exporting to a spreadsheet for your accountant, and printing Bengali item names.
 
