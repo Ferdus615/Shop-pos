@@ -123,7 +123,9 @@ Verified with headless-browser (Playwright) smoke tests.
   expenses column chart with hover/keyboard readout and a table view. A loss is
   coloured and labelled, never just a negative number. Verified by a 29-check browser
   run against seeded multi-month data.
-- **Expenses** (`/expenses`, owner) — month picker defaulting to the current month,
+- **Expenses** (`/expenses`, owner) — recording starts with the category: it is the
+  first field, required, and creatable inline without leaving the dialog. Then the
+  month picker defaulting to the current month,
   monthly total / entry count / largest category, expense CRUD with a category filter,
   and expense-category CRUD showing each category's spend for the month (plus an
   Uncategorized row so the totals reconcile). Verified by a 13-check browser run

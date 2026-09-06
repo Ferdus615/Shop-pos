@@ -256,6 +256,23 @@ Aggregates `COMPLETED` orders within the business-timezone calendar day (default
 today): order count, total sales, breakdown by payment method, and the top five items
 by quantity sold.
 
+### Recording an expense — the category comes first
+
+`POST /expenses` accepts an expense with no category, but the dialog does not: the
+category is the first field, is required, and can be created inline (the new category
+is held in local state as well as invalidated in the cache, so the just-selected id
+always has a matching option even before the refetch lands). Expenses recorded before
+this rule keep their unfiled state when edited, and stay reachable as "Uncategorized"
+in every breakdown — the rule governs new entries, not history.
+
+`ExpensesService.update` deliberately loads the expense **without** its `category`
+relation. TypeORM's `save()` lets a loaded relation take precedence over the FK
+column, and the two disagreeing is silent data loss — first writing the old category
+back over a new one, then (when the relation was nulled to force the column through)
+wiping the category of any expense saved with its category unchanged. With no relation
+loaded, `categoryId` is the single source of truth, and the handler re-reads the row so
+the client still gets the category name. `expenses.service.spec.ts` pins all of it.
+
 ### Monthly expense summary — `GET /expenses/summary?month=`
 
 Aggregates expenses within the business-timezone month (defaults to the current one):

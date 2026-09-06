@@ -70,8 +70,11 @@ Their past sales stay on record.
 
 ### 7. Track your expenses
 
-Record what you spend — rent, supplies, bills — sorted into your own categories. Set
-up your categories once (like your menu categories), then file each expense under one.
+Record what you spend — rent, supplies, bills — sorted into your own categories.
+**Every new expense starts with its category**: the dialog asks for it first and will
+not save without one, so nothing ends up in a nameless pile. If the category you need
+does not exist yet, add it right there in the same dialog — you never have to leave
+and come back. Anything you recorded before this rule keeps whatever it had.
 The Expenses screen opens on this month and shows your total, how many entries there
 are, your biggest category, and what each category cost you. Pick another month from
 the month box to look back.
