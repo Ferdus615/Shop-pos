@@ -79,6 +79,7 @@ shop-pos/
 │   │       ├── pos/                  # till
 │   │       ├── sales/                # daily sales (owner)
 │   │       ├── menu/                 # menu CRUD (owner)
+│   │       ├── dashboard/            # day/month/year overview + trend (owner)
 │   │       ├── expenses/             # expenses + categories (owner)
 │   │       ├── staff/                # shop users (owner)
 │   │       └── admin/shops/          # tenants (platform admin)
@@ -263,8 +264,16 @@ total plus a per-category breakdown, with uncategorized rows grouped as
 
 ### Dashboard — `GET /dashboard?date=`
 
-Composes the daily sales summary, the month-to-date sales total, and the monthly
-expense summary, and derives `netProfit = monthlySales − monthlyExpenses`.
+Three horizons from one reference day. `OrdersService` and `ExpensesService` each
+expose one private range aggregate (`aggregateSales`, `aggregateExpenses`) that the
+day, month and year views all call, so the three periods cannot drift apart in
+definition; `DashboardService` pairs each period's sales with its expenses, derives
+`netProfit` and the average basket, and joins the two per-month series into a single
+twelve-entry trend. Eight queries run concurrently behind one request.
+
+Months with no activity are still emitted (zero-filled from `monthsOfYear`) so a chart
+drawn from the trend has no gaps, and every figure is computed server-side — the client
+does no money arithmetic.
 
 ### Reporting boundaries and timezone
 
@@ -349,6 +358,13 @@ slip to a bitmap and sending it as a raster image (`GS v 0`) — a change in
   invalidating the keys they affect. Components hold no fetching logic.
 - **Money formatting** is centralised in `src/lib/format.ts` (fixed two decimals, no
   currency symbol — currency configuration is still outstanding).
+- **The one chart is hand-rolled SVG** (`dashboard/monthly-trend-chart.tsx`) rather
+  than a charting dependency: grouped columns on a single axis, since both series are
+  money. Its two series colours live in `globals.css` as `--viz-*` tokens, stepped
+  separately for light and dark, and were validated for colour-blind separation
+  (worst-case ΔE 14.9 against a ≥8 target) and ≥3:1 contrast against the card surface.
+  Identity never rests on colour alone: there is a legend, a hover/keyboard readout,
+  and a table view of the same figures.
 
 ---
 

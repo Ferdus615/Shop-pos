@@ -22,7 +22,7 @@ host **several independent shops** rather than one, and receipts had to come out
 | Phase | Scope | Status |
 | ----- | ----- | ------ |
 | 1. Backend | API, database, auth, all four features | ✅ Done & verified |
-| 2. Frontend | Next.js UI for all features | 🟡 In progress — the dashboard screen remains |
+| 2. Frontend | Next.js UI for all features | ✅ Done — every screen built |
 | 2b. Multi-tenancy | Shops as tenants, platform administrator, tenant isolation | ✅ Done & verified |
 | 2c. Receipt printing | Print-job queue + counter-PC bridge for Bluetooth ESC/POS | ✅ Done & verified |
 | 3. Enhancements | Charts, partial refunds, per-item tax, stock, exports | ⬜ Backlog |
@@ -150,6 +150,6 @@ and a configurable reporting timezone. What remains:
 - [x] Receipt printing working on live hardware from any till
 - [x] Tenant isolation verified end-to-end
 - [x] Expenses screens built
-- [ ] Owner dashboard screen built
+- [x] Owner dashboard screen built
 - [ ] Void action exposed in the UI
 - [ ] Initial database migration committed (no reliance on `synchronize`)
