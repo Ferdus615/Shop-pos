@@ -8,9 +8,12 @@ import { Between, DataSource, EntityManager, In, Repository } from 'typeorm';
 import { OrderStatus } from '../common/enums/order-status.enum';
 import { PaymentMethod } from '../common/enums/payment-method.enum';
 import {
+  APP_TIME_ZONE,
   formatDay,
+  monthsOfYear,
   parseDayRange,
   parseMonthRange,
+  parseYearRange,
   round2,
 } from '../common/utils/date.util';
 import { MenuItem } from '../menu/entities/menu-item.entity';
@@ -19,7 +22,9 @@ import { QueryOrdersDto } from './dto/query-orders.dto';
 import { OrderItem } from './entities/order-item.entity';
 import { Order } from './entities/order.entity';
 import {
+  MonthlySalesPoint,
   PaymentMethodBreakdown,
+  SalesAggregate,
   SalesSummary,
   TopSellingItem,
 } from './interfaces/sales-summary.interface';
@@ -188,7 +193,79 @@ export class OrdersService {
   /** Daily sales summary. Defaults to today when no date is supplied. */
   async getSalesSummary(shopId: string, date?: string): Promise<SalesSummary> {
     const { start, end, day } = parseDayRange(date);
+    return { date: day, ...(await this.aggregateSales(shopId, start, end)) };
+  }
 
+  /** Sales summary for a whole month (YYYY-MM). Defaults to this month. */
+  async getMonthlySalesSummary(
+    shopId: string,
+    month?: string,
+  ): Promise<SalesAggregate & { month: string }> {
+    const { start, end, month: resolved } = parseMonthRange(month);
+    return {
+      month: resolved,
+      ...(await this.aggregateSales(shopId, start, end)),
+    };
+  }
+
+  /** Sales summary for a whole year (YYYY). Defaults to this year. */
+  async getYearlySalesSummary(
+    shopId: string,
+    year?: string,
+  ): Promise<SalesAggregate & { year: string }> {
+    const { start, end, year: resolved } = parseYearRange(year);
+    return {
+      year: resolved,
+      ...(await this.aggregateSales(shopId, start, end)),
+    };
+  }
+
+  /**
+   * Takings per month across a calendar year, including months with no sales
+   * so a trend has no gaps in it.
+   */
+  async getMonthlySalesSeries(
+    shopId: string,
+    year?: string,
+  ): Promise<MonthlySalesPoint[]> {
+    const { start, end, year: resolved } = parseYearRange(year);
+
+    const rows = await this.ordersRepository
+      .createQueryBuilder('order')
+      .select("to_char(order.created_at AT TIME ZONE :tz, 'YYYY-MM')", 'month')
+      .addSelect('COUNT(*)', 'orderCount')
+      .addSelect('COALESCE(SUM(order.total), 0)', 'totalSales')
+      .where('order.shop_id = :shopId', { shopId })
+      .andWhere('order.status = :status', { status: OrderStatus.COMPLETED })
+      .andWhere('order.createdAt BETWEEN :start AND :end', { start, end })
+      .setParameter('tz', APP_TIME_ZONE)
+      .groupBy('month')
+      .getRawMany<{
+        month: string;
+        orderCount: string;
+        totalSales: string;
+      }>();
+
+    const byMonth = new Map(rows.map((r) => [r.month, r]));
+    return monthsOfYear(resolved).map((month) => {
+      const row = byMonth.get(month);
+      return {
+        month,
+        orderCount: Number(row?.orderCount ?? 0),
+        totalSales: round2(Number(row?.totalSales ?? 0)),
+      };
+    });
+  }
+
+  /**
+   * The shared aggregate behind the daily, monthly and yearly views: totals,
+   * the payment-method split, and the five best sellers over one range.
+   */
+  private async aggregateSales(
+    shopId: string,
+    start: Date,
+    end: Date,
+  ): Promise<SalesAggregate> {
     const totals = await this.ordersRepository
       .createQueryBuilder('order')
       .select('COUNT(*)', 'orderCount')
@@ -242,7 +319,6 @@ export class OrdersService {
     }));
 
     return {
-      date: day,
       orderCount: Number(totals?.orderCount ?? 0),
       totalSales: round2(Number(totals?.totalSales ?? 0)),
       byPaymentMethod,

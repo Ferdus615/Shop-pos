@@ -79,6 +79,7 @@ shop-pos/
 │   │       ├── pos/                  # till
 │   │       ├── sales/                # daily sales (owner)
 │   │       ├── menu/                 # menu CRUD (owner)
+│   │       ├── dashboard/            # day/month/year overview + trend (owner)
 │   │       ├── expenses/             # expenses + categories (owner)
 │   │       ├── staff/                # shop users (owner)
 │   │       └── admin/shops/          # tenants (platform admin)
@@ -263,8 +264,16 @@ total plus a per-category breakdown, with uncategorized rows grouped as
 
 ### Dashboard — `GET /dashboard?date=`
 
-Composes the daily sales summary, the month-to-date sales total, and the monthly
-expense summary, and derives `netProfit = monthlySales − monthlyExpenses`.
+Three horizons from one reference day. `OrdersService` and `ExpensesService` each
+expose one private range aggregate (`aggregateSales`, `aggregateExpenses`) that the
+day, month and year views all call, so the three periods cannot drift apart in
+definition; `DashboardService` pairs each period's sales with its expenses, derives
+`netProfit` and the average basket, and joins the two per-month series into a single
+twelve-entry trend. Eight queries run concurrently behind one request.
+
+Months with no activity are still emitted (zero-filled from `monthsOfYear`) so a chart
+drawn from the trend has no gaps, and every figure is computed server-side — the client
+does no money arithmetic.
 
 ### Reporting boundaries and timezone
 
@@ -336,14 +345,26 @@ slip to a bitmap and sending it as a raster image (`GS v 0`) — a change in
 - **Client-side auth.** The JWT is held in `localStorage` under `shop_pos_token` and
   attached by an axios request interceptor. A response interceptor drops the token and
   bounces to `/login` on any `401`. `src/lib/auth-context.tsx` exposes the current user.
-- **Role-aware navigation.** `app-shell.tsx` declares each nav item with the roles that
-  may see it, so a `STAFF` login sees only the POS and a `SUPER_ADMIN` sees only Shops.
+- **One route-permission table.** `src/lib/routes.ts` declares which roles may open
+  which route, and both the sidebar filter and the `(app)/layout.tsx` guard read it, so
+  a link cannot appear for a role that would be redirected away from the page. A `STAFF`
+  login sees only the POS; typing `/expenses`, `/staff`, `/menu` or `/sales` redirects
+  to `/pos`, and the layout withholds the children until the redirect lands so the
+  forbidden page never mounts or fires its requests. A `SUPER_ADMIN` is kept to
+  `/admin/*`. Unlisted paths are allowed through so a genuine 404 still renders.
   This is a convenience — the API enforces the same rules independently.
 - **Server state via TanStack Query.** All API access goes through typed hooks in
   `src/lib/hooks.ts`, with query keys centralised in `queryKeys` and mutations
   invalidating the keys they affect. Components hold no fetching logic.
 - **Money formatting** is centralised in `src/lib/format.ts` (fixed two decimals, no
   currency symbol — currency configuration is still outstanding).
+- **The one chart is hand-rolled SVG** (`dashboard/monthly-trend-chart.tsx`) rather
+  than a charting dependency: grouped columns on a single axis, since both series are
+  money. Its two series colours live in `globals.css` as `--viz-*` tokens, stepped
+  separately for light and dark, and were validated for colour-blind separation
+  (worst-case ΔE 14.9 against a ≥8 target) and ≥3:1 contrast against the card surface.
+  Identity never rests on colour alone: there is a legend, a hover/keyboard readout,
+  and a table view of the same figures.
 
 ---
 

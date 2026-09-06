@@ -15,8 +15,8 @@ This complements the other docs:
 
 - **Backend:** ✅ Complete for every planned feature, plus multi-tenancy, refunds and
   the print queue.
-- **Frontend:** 🟡 The till, expenses and the owner's day-to-day screens are done;
-  the dashboard remains.
+- **Frontend:** 🟡 Every planned screen is built — till, sales, menu, expenses,
+  staff, shops and the owner dashboard. Only the void action remains.
 - **Print bridge:** ✅ Complete and verified against live hardware.
 
 | Feature | Backend API | Frontend UI |
@@ -31,7 +31,7 @@ This complements the other docs:
 | Void an order | ✅ Done | ⬜ To do |
 | Bluetooth receipt printing (print bridge) | ✅ Done | ✅ Done |
 | Expense tracking (monthly) | ✅ Done | ✅ Done |
-| Owner dashboard (sales + expenses + net) | ✅ Done | ⬜ To do |
+| Owner dashboard (day / month / year + trend) | ✅ Done | ✅ Done |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started
 
@@ -59,8 +59,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started
   five items.
 - **Expenses** — categories and expenses CRUD, monthly summary with per-category
   breakdown.
-- **Dashboard** — one call combining today's sales, month-to-date sales, monthly
-  expenses and net profit.
+- **Dashboard** — one call returning the reference day, its month and its year, each
+  with sales, expenses and net profit, plus a twelve-month trend of sales, spend and
+  net. Year ranges are timezone-correct (a sale at 00:30 Dhaka on 1 January belongs to
+  the new year); the original `today` / `monthToDate` fields are still served.
 - **Printing** — the print-job queue: exclusive claims, station heartbeat, retry and
   give-up, stale-job expiry, printer status for the tills.
 - **Reporting timezone** — day and month boundaries computed in the business timezone
@@ -110,6 +112,13 @@ Verified with headless-browser (Playwright) smoke tests.
 - **Staff** (`/staff`, owner) — list users, create staff accounts, edit, deactivate.
 - **Shops** (`/admin/shops`, platform admin) — list shops, create a shop with its owner,
   edit details, suspend and reactivate.
+- **Dashboard** (`/dashboard`, owner) — reference-day picker; three tiles giving the
+  day, month and year at a glance (each doubling as a period switcher); the selected
+  period's sales, orders, average basket, expenses and net profit; expenses by category
+  and payment split with proportion bars; best sellers; and a month-by-month sales-vs-
+  expenses column chart with hover/keyboard readout and a table view. A loss is
+  coloured and labelled, never just a negative number. Verified by a 29-check browser
+  run against seeded multi-month data.
 - **Expenses** (`/expenses`, owner) — month picker defaulting to the current month,
   monthly total / entry count / largest category, expense CRUD with a category filter,
   and expense-category CRUD showing each category's spend for the month (plus an
@@ -123,11 +132,12 @@ Verified with headless-browser (Playwright) smoke tests.
 
 ### Frontend — remaining (the backend already supports all of these)
 
-1. **Owner dashboard** (`/dashboard`, owner-only)
-   - Today's sales, month-to-date sales, month-to-date expenses, net profit.
-   - Likely becomes the landing page after login for owners, in place of `/pos`.
-2. **Void an order** — an owner action in the sales order list, alongside refund,
+1. **Void an order** — an owner action in the sales order list, alongside refund,
    calling `POST /orders/:id/void`.
+2. **Owner landing page** — `/pos` is still where every shop user lands after login.
+   Pointing owners at `/dashboard` instead is a one-line change in
+   `frontend/src/lib/routes.ts` (`homeFor`), left alone because it changes the
+   post-login destination for everyone with an owner account.
 
 ### Polish
 
@@ -195,7 +205,8 @@ day — are covered in the [OPERATIONS.md runbook](OPERATIONS.md#9-runbook).
 
 ## 5. Suggested next step
 
-Build the **Owner dashboard** — the last screen of Phase 2. Sales and expenses are
-both now captured in the UI, so the dashboard endpoint (`GET /dashboard`) has
-everything it needs to show today's takings, the month's expenses and net profit in
-one view.
+Phase 2's screens are all built. The two cheap finishing touches are the **void
+action** in the sales list and deciding whether owners should land on `/dashboard`
+instead of `/pos`. After that, the highest-value work is engineering rather than
+features: commit the initial migration, and turn the browser suites used to verify
+expenses, the role guard and the dashboard into a committed test run.

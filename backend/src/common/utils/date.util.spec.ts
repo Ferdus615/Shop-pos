@@ -1,4 +1,11 @@
-import { formatDay, parseDayRange, parseMonthRange } from './date.util';
+import {
+  formatDay,
+  formatYear,
+  monthsOfYear,
+  parseDayRange,
+  parseMonthRange,
+  parseYearRange,
+} from './date.util';
 
 /**
  * These tests assert that report boundaries follow the Asia/Dhaka (UTC+6)
@@ -56,6 +63,59 @@ describe('date.util (Asia/Dhaka boundaries, server-TZ independent)', () => {
       expect(formatDay(new Date('2026-07-19T20:00:00.000Z'))).toBe(
         '2026-07-20',
       );
+    });
+  });
+
+  describe('parseYearRange', () => {
+    it('maps a Dhaka year to the correct UTC instants', () => {
+      const { start, end, year } = parseYearRange('2026');
+      // 1 Jan 00:00 Dhaka === 31 Dec 18:00Z the year before.
+      expect(start.toISOString()).toBe('2025-12-31T18:00:00.000Z');
+      expect(end.toISOString()).toBe('2026-12-31T17:59:59.999Z');
+      expect(year).toBe('2026');
+    });
+
+    it('includes a sale made in the first minutes of the Dhaka year', () => {
+      const { start, end } = parseYearRange('2026');
+      const order = new Date('2025-12-31T18:30:00.000Z'); // 00:30 Dhaka, 1 Jan
+      expect(order >= start && order <= end).toBe(true);
+    });
+
+    it("excludes New Year's Eve from the previous Dhaka year", () => {
+      const { start } = parseYearRange('2026');
+      const order = new Date('2025-12-31T17:30:00.000Z'); // 23:30 Dhaka, 31 Dec
+      expect(order < start).toBe(true);
+    });
+
+    it('covers a leap year to its last instant', () => {
+      const { start, end } = parseYearRange('2024');
+      expect(start.toISOString()).toBe('2023-12-31T18:00:00.000Z');
+      expect(end.toISOString()).toBe('2024-12-31T17:59:59.999Z');
+      // 29 February exists inside the range.
+      const leapDay = new Date('2024-02-29T06:00:00.000Z');
+      expect(leapDay >= start && leapDay <= end).toBe(true);
+    });
+
+    it('rejects a malformed year', () => {
+      expect(() => parseYearRange('26')).toThrow();
+      expect(() => parseYearRange('2026-01')).toThrow();
+    });
+  });
+
+  describe('formatYear', () => {
+    it('reports the Dhaka year, not the UTC year', () => {
+      // 31 Dec 2025 20:00Z is already 1 Jan 2026 in Dhaka.
+      expect(formatYear(new Date('2025-12-31T20:00:00.000Z'))).toBe('2026');
+    });
+  });
+
+  describe('monthsOfYear', () => {
+    it('lists twelve zero-padded months in order', () => {
+      const months = monthsOfYear('2026');
+      expect(months).toHaveLength(12);
+      expect(months[0]).toBe('2026-01');
+      expect(months[8]).toBe('2026-09');
+      expect(months[11]).toBe('2026-12');
     });
   });
 });

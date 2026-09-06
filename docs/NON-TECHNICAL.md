@@ -78,9 +78,20 @@ the month box to look back.
 
 ### 8. Owner dashboard
 
-One view combining today's sales with this month's sales, expenses, and your **net
-profit** (sales minus expenses). _Also built in the engine, with the screen still to
-come._
+One screen that answers "how is the shop doing?" over three spans at once — **today,
+this month, and this year**:
+
+- three cards at the top showing what you took in each span, and your profit for it;
+- tap one to see that span in full: sales, number of orders, average sale, what you
+  spent, and your profit;
+- where the money went, by expense category, and how customers paid;
+- your best sellers for that span;
+- a **month-by-month chart** of the whole year — takings beside spending, so a bad
+  month is visible at a glance. Hover a month for its exact figures, or press "View as
+  table" if you would rather read the numbers.
+
+A month where you spent more than you took is shown in red and labelled as such, so a
+loss is never mistaken for a gain. Pick any past day with the date box to look back.
 
 ## Who can log in, and what they see
 
@@ -117,10 +128,10 @@ to can get in.
 
 ## What's next?
 
-- **The owner dashboard** — the last screen: today's takings, this month's expenses
-  and your profit, all in one view.
 - **A "void" button** for cancelling an order rather than refunding it (the engine
   already supports it).
+- **Choosing where you land** — signing in still opens the till. If you would rather
+  it opened the dashboard, that is a small change to make.
 - **Later ideas:** charts and trends, partial refunds, per-item tax, stock tracking,
   exporting to a spreadsheet for your accountant, and printing Bengali item names.
 

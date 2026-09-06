@@ -1,6 +1,6 @@
 # Shop POS — API Reference
 
-_Audience: anyone writing a client against the backend. Last updated: 2026-08-31._
+_Audience: anyone writing a client against the backend. Last updated: 2026-09-06._
 
 A live, interactive version of this reference (OpenAPI/Swagger) is served by the
 running backend at **`/docs`**. This document is the narrative companion: it states the
@@ -369,13 +369,24 @@ All routes require **`OWNER`**.
 
 ### `GET /dashboard?date=YYYY-MM-DD` — **`OWNER`**
 
-One call composing the day's sales with the month's sales and expenses, so the owner
-screen needs no client-side arithmetic.
+One call covering three horizons around the reference day — the day itself, its month
+and its year — plus a twelve-month trend, so the owner screen needs no client-side
+arithmetic and cannot mix figures read at different moments.
 
 ```json
 {
-  "date": "2026-08-31",
-  "today": { "…": "the same shape as GET /orders/summary" },
+  "date": "2026-09-06",
+  "month": "2026-09",
+  "year": "2026",
+  "periods": {
+    "day":   { "…": "PeriodOverview" },
+    "month": { "…": "PeriodOverview" },
+    "year":  { "…": "PeriodOverview" }
+  },
+  "monthlyTrend": [
+    { "month": "2026-01", "orderCount": 10, "totalSales": 5000, "totalExpenses": 1500, "netProfit": 3500 }
+  ],
+  "today": { "…": "unchanged, the same shape as GET /orders/summary" },
   "monthToDate": {
     "totalSales": 512000,
     "totalExpenses": 41500,
@@ -385,7 +396,39 @@ screen needs no client-side arithmetic.
 }
 ```
 
-`netProfit` is `totalSales − totalExpenses` for the month containing `date`.
+Each `PeriodOverview` is the same shape whichever horizon it describes:
+
+```json
+{
+  "label": "2026-09",
+  "sales": {
+    "orderCount": 30,
+    "totalSales": 9000,
+    "averageOrderValue": 300,
+    "byPaymentMethod": [ "…" ],
+    "topItems": [ "…" ]
+  },
+  "expenses": {
+    "expenseCount": 12,
+    "totalExpenses": 3000,
+    "byCategory": [ "…" ]
+  },
+  "netProfit": 6000
+}
+```
+
+- `label` is `YYYY-MM-DD`, `YYYY-MM` or `YYYY` for the day, month and year respectively.
+- `netProfit` is `totalSales − totalExpenses` for that period, and goes **negative**
+  when a period spent more than it took.
+- `averageOrderValue` is `0` — never `null` or `NaN` — for a period with no orders.
+- `monthlyTrend` always holds **twelve** entries, including months with no activity, so
+  a chart drawn from it has no gaps.
+- Period boundaries follow the business timezone: a sale at 00:30 Dhaka on 1 January
+  counts in the new year, and one at 23:30 on 31 December counts in the old one.
+- `today` and `monthToDate` are the endpoint's original fields, still served unchanged.
+
+> Sales figures across the dashboard count `COMPLETED` orders only, so voiding or
+> refunding an order removes it from every period it appeared in.
 
 ---
 
