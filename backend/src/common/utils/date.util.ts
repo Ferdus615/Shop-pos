@@ -24,6 +24,12 @@ export interface MonthRange {
   month: string; // YYYY-MM
 }
 
+export interface YearRange {
+  start: Date;
+  end: Date;
+  year: string; // YYYY
+}
+
 function pad(value: number): string {
   return value.toString().padStart(2, '0');
 }
@@ -112,6 +118,11 @@ export function formatMonth(date: Date): string {
   return `${year}-${pad(month)}`;
 }
 
+/** Format an instant as YYYY in APP_TIME_ZONE. */
+export function formatYear(date: Date): string {
+  return String(zonedParts(date).year);
+}
+
 /**
  * Resolve a YYYY-MM-DD string (or today, if omitted) into the start/end
  * instants of that calendar day in APP_TIME_ZONE.
@@ -174,6 +185,32 @@ export function parseMonthRange(month?: string): MonthRange {
   const start = zonedTimeToInstant(year, monthIndex, 1, 0, 0, 0, 0);
   const end = zonedTimeToInstant(year, monthIndex, lastDay, 23, 59, 59, 999);
   return { start, end, month: formatMonth(start) };
+}
+
+/**
+ * Resolve a YYYY string (or the current year, if omitted) into the start/end
+ * instants of that calendar year in APP_TIME_ZONE.
+ */
+export function parseYearRange(year?: string): YearRange {
+  let y: number;
+
+  if (year) {
+    if (!/^\d{4}$/.test(year)) {
+      throw new BadRequestException('year must be in YYYY format');
+    }
+    y = Number(year);
+  } else {
+    y = zonedParts(new Date()).year;
+  }
+
+  const start = zonedTimeToInstant(y, 0, 1, 0, 0, 0, 0);
+  const end = zonedTimeToInstant(y, 11, 31, 23, 59, 59, 999);
+  return { start, end, year: formatYear(start) };
+}
+
+/** The twelve YYYY-MM months of a calendar year, in order. */
+export function monthsOfYear(year: string): string[] {
+  return Array.from({ length: 12 }, (_, i) => `${year}-${pad(i + 1)}`);
 }
 
 export function round2(value: number): number {

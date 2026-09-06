@@ -12,10 +12,24 @@ export interface TopSellingItem {
   revenue: number;
 }
 
-export interface SalesSummary {
-  date: string; // YYYY-MM-DD
+/**
+ * Sales aggregates for an arbitrary period. The daily, monthly and yearly
+ * views are the same figures over a different range, so they share one shape.
+ */
+export interface SalesAggregate {
   orderCount: number;
   totalSales: number;
   byPaymentMethod: PaymentMethodBreakdown[];
   topItems: TopSellingItem[];
+}
+
+export interface SalesSummary extends SalesAggregate {
+  date: string; // YYYY-MM-DD
+}
+
+/** One month's takings, for a year-long trend. */
+export interface MonthlySalesPoint {
+  month: string; // YYYY-MM
+  orderCount: number;
+  totalSales: number;
 }

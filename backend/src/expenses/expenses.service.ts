@@ -7,13 +7,22 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Between, FindOptionsWhere, Repository } from 'typeorm';
 import { ExpenseCategory } from './entities/expense-category.entity';
 import { Expense } from './entities/expense.entity';
-import { formatDay, parseMonthRange, round2 } from '../common/utils/date.util';
+import {
+  formatDay,
+  monthsOfYear,
+  parseDayRange,
+  parseMonthRange,
+  parseYearRange,
+  round2,
+} from '../common/utils/date.util';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { QueryExpensesDto } from './dto/query-expenses.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import {
+  ExpenseAggregate,
   ExpenseCategoryBreakdown,
   ExpenseSummary,
+  MonthlyExpensePoint,
 } from './interfaces/expense-summary.interface';
 
 @Injectable()
@@ -124,9 +133,96 @@ export class ExpensesService {
     month?: string,
   ): Promise<ExpenseSummary> {
     const { start, end, month: resolvedMonth } = parseMonthRange(month);
-    const startDay = formatDay(start);
-    const endDay = formatDay(end);
+    return {
+      month: resolvedMonth,
+      ...(await this.aggregateExpenses(
+        shopId,
+        formatDay(start),
+        formatDay(end),
+      )),
+    };
+  }
 
+  /** One day's expenses. Defaults to today. */
+  async getDailySummary(
+    shopId: string,
+    date?: string,
+  ): Promise<ExpenseAggregate & { date: string }> {
+    const { start, end, day } = parseDayRange(date);
+    return {
+      date: day,
+      ...(await this.aggregateExpenses(
+        shopId,
+        formatDay(start),
+        formatDay(end),
+      )),
+    };
+  }
+
+  /** A whole year's expenses (YYYY). Defaults to this year. */
+  async getYearlySummary(
+    shopId: string,
+    year?: string,
+  ): Promise<ExpenseAggregate & { year: string }> {
+    const { start, end, year: resolved } = parseYearRange(year);
+    return {
+      year: resolved,
+      ...(await this.aggregateExpenses(
+        shopId,
+        formatDay(start),
+        formatDay(end),
+      )),
+    };
+  }
+
+  /**
+   * Spend per month across a calendar year, including months with nothing
+   * recorded so a trend has no gaps in it.
+   */
+  async getMonthlyExpenseSeries(
+    shopId: string,
+    year?: string,
+  ): Promise<MonthlyExpensePoint[]> {
+    const { start, end, year: resolved } = parseYearRange(year);
+
+    const rows = await this.expensesRepository
+      .createQueryBuilder('expense')
+      // expense_date is a plain date, so the month needs no zone conversion.
+      .select("to_char(expense.expense_date, 'YYYY-MM')", 'month')
+      .addSelect('COUNT(*)', 'expenseCount')
+      .addSelect('COALESCE(SUM(expense.amount), 0)', 'totalExpenses')
+      .where('expense.shop_id = :shopId', { shopId })
+      .andWhere('expense.expense_date BETWEEN :startDay AND :endDay', {
+        startDay: formatDay(start),
+        endDay: formatDay(end),
+      })
+      .groupBy('month')
+      .getRawMany<{
+        month: string;
+        expenseCount: string;
+        totalExpenses: string;
+      }>();
+
+    const byMonth = new Map(rows.map((r) => [r.month, r]));
+    return monthsOfYear(resolved).map((month) => {
+      const row = byMonth.get(month);
+      return {
+        month,
+        expenseCount: Number(row?.expenseCount ?? 0),
+        totalExpenses: round2(Number(row?.totalExpenses ?? 0)),
+      };
+    });
+  }
+
+  /**
+   * The shared aggregate behind the daily, monthly and yearly views: the
+   * total, the entry count, and the per-category split over one date range.
+   */
+  private async aggregateExpenses(
+    shopId: string,
+    startDay: string,
+    endDay: string,
+  ): Promise<ExpenseAggregate> {
     const totals = await this.expensesRepository
       .createQueryBuilder('expense')
       .select('COUNT(*)', 'expenseCount')
@@ -168,7 +264,6 @@ export class ExpensesService {
     }));
 
     return {
-      month: resolvedMonth,
       expenseCount: Number(totals?.expenseCount ?? 0),
       totalExpenses: round2(Number(totals?.totalExpenses ?? 0)),
       byCategory,

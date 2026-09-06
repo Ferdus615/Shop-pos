@@ -336,8 +336,13 @@ slip to a bitmap and sending it as a raster image (`GS v 0`) — a change in
 - **Client-side auth.** The JWT is held in `localStorage` under `shop_pos_token` and
   attached by an axios request interceptor. A response interceptor drops the token and
   bounces to `/login` on any `401`. `src/lib/auth-context.tsx` exposes the current user.
-- **Role-aware navigation.** `app-shell.tsx` declares each nav item with the roles that
-  may see it, so a `STAFF` login sees only the POS and a `SUPER_ADMIN` sees only Shops.
+- **One route-permission table.** `src/lib/routes.ts` declares which roles may open
+  which route, and both the sidebar filter and the `(app)/layout.tsx` guard read it, so
+  a link cannot appear for a role that would be redirected away from the page. A `STAFF`
+  login sees only the POS; typing `/expenses`, `/staff`, `/menu` or `/sales` redirects
+  to `/pos`, and the layout withholds the children until the redirect lands so the
+  forbidden page never mounts or fires its requests. A `SUPER_ADMIN` is kept to
+  `/admin/*`. Unlisted paths are allowed through so a genuine 404 still renders.
   This is a convenience — the API enforces the same rules independently.
 - **Server state via TanStack Query.** All API access goes through typed hooks in
   `src/lib/hooks.ts`, with query keys centralised in `queryKeys` and mutations
