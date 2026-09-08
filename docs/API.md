@@ -227,6 +227,7 @@ which carry their own name and price snapshot.
 | `POST` | `/orders` | OWNER, STAFF | Ring up a sale |
 | `GET` | `/orders` | OWNER, STAFF | List; filters `from`, `to`, `status` |
 | `GET` | `/orders/:id` | OWNER, STAFF | One order with its lines |
+| `GET` | `/orders/open` | OWNER, STAFF | Orders still to serve or settle (the floor view) |
 | `GET` | `/orders/summary` | OWNER | Daily sales summary |
 | `POST` | `/orders/:id/void` | OWNER | Void an order |
 | `POST` | `/orders/:id/refund` | OWNER | Refund an order |
@@ -291,6 +292,13 @@ Response:
 
 `400` when an item id does not exist in this shop, an item is unavailable, or the
 discount exceeds the subtotal.
+
+### `GET /orders/open`
+
+Every `COMPLETED` order that is **unpaid or unserved**, with its lines, oldest first.
+Not filtered by date — a bill opened before midnight is still open afterwards, so a
+day filter would hide a table that is still sitting there. This is what the Tables
+view reads, and it polls.
 
 ### Settling and serving — `POST /orders/:id/pay`, `/serve`
 

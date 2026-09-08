@@ -28,6 +28,7 @@ This complements the other docs:
 | POS — ring up sales | ✅ Done | ✅ Done |
 | Table numbers + one bill per open table | ✅ Done | ✅ Done |
 | Mark orders done (served) and paid | ✅ Done | ✅ Done |
+| Open-tables floor view | ✅ Done | ✅ Done |
 | Sales tracking (daily) | ✅ Done | ✅ Done |
 | Staff / user management | ✅ Done | ✅ Done |
 | Refund an order | ✅ Done | ✅ Done |
@@ -58,6 +59,8 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started
 - **Orders (POS)** — server-side pricing inside a transaction, duplicate-line merging,
   name/price snapshots, per-shop order numbering, list with date and status filters,
   void and refund.
+- **Open orders** — `GET /orders/open` returns everything still to serve or settle,
+  unfiltered by date so a bill survives midnight.
 - **Dine-in** — orders carry a table number and start unpaid/unserved; a table's second
   round is appended to its open bill until it is settled; paying confirms the method
   actually used and stamps `paidAt`; serving toggles independently. Takings count paid
@@ -145,10 +148,12 @@ Verified with headless-browser (Playwright) smoke tests.
 
 ### Known gaps in the new dine-in flow
 
-- **No open-tables view.** The Sales list with its Unpaid/Waiting tabs is the worklist;
-  a screen grouped by table would suit a busy floor better.
 - **`paidAt` / `servedAt` are recorded but never shown.** They are there so
   "how long from order to served" is available later without a migration.
+- **Staff still land on the till**, not the Tables view. Making Tables the staff
+  landing page is a one-line change in `frontend/src/lib/routes.ts` (`homeFor`).
+- **The long-wait threshold is fixed at 15 minutes** in the Tables view, not
+  configurable per shop.
 - **The manual "Print receipt" icon still uses the browser dialog**, while the receipt
   printed at payment goes through the bridge to the thermal printer.
 - **One table, one open bill.** Splitting a bill between customers is not supported.

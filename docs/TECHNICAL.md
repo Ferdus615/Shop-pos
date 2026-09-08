@@ -77,6 +77,7 @@ shop-pos/
 │   │   ├── login/page.tsx
 │   │   └── (app)/                    # authenticated shell
 │   │       ├── pos/                  # till
+│   │       ├── tables/               # open-tables floor view (owner + staff)
 │   │       ├── sales/                # daily sales (owner)
 │   │       ├── menu/                 # menu CRUD (owner)
 │   │       ├── dashboard/            # day/month/year overview + trend (owner)
@@ -272,6 +273,12 @@ can be settled before the last dish arrives.
   moment anyone knows it. `POST /orders/:id/unpay` corrects a mis-click and is
   owner-only — it is not a refund, since no money moved.
 - **Serving toggles**: `POST /orders/:id/serve` and `/unserve`.
+- **The floor view reads `GET /orders/open`** — every `COMPLETED` order that is unpaid
+  or unserved, oldest first. Deliberately **not** filtered by date: a bill opened
+  before midnight is the same bill afterwards, and a view that dropped it at the day
+  boundary would hide a table still sitting there. The frontend groups it by table
+  (counter sales under "Counter") and polls every 15s, since the screen is read across
+  a room while other people mark things done on their own devices.
 - Paying and serving are **staff work**, so those endpoints and the sales page are open
   to `STAFF`; void, refund and unpay stay `OWNER`.
 

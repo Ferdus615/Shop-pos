@@ -49,7 +49,26 @@ The app tells you which happened. One note: thermal printers can only print Lati
 letters and numbers, so Bengali item names come out as `?` — for now, give items Latin
 names on the menu.
 
-### 4. Mark orders done and paid
+### 4. The Tables screen
+
+This is the screen for whoever is working the floor. It shows **only what still needs
+doing** — every table that is waiting for food, owes money, or both — as one card per
+table:
+
+- what is on each bill, and how long it has been waiting,
+- an amber warning once something has been waiting more than 15 minutes,
+- **Done** and **Paid** buttons right there on the card,
+- a table with two rounds shows both bills together under one heading,
+- counter and takeaway orders are grouped under "Counter".
+
+Along the top it tells you how many tables are open, how many orders are waiting to go
+out, and how much money is still unsettled. It refreshes itself every few seconds, so
+two people can work from it at once and each sees what the other has marked. When
+everything is served and settled, it simply says "Nothing open".
+
+Your staff have this screen too.
+
+### 5. Mark orders done and paid
 
 The Sales list is the working list for the floor. Each order shows two things at once:
 
@@ -64,7 +83,7 @@ is cash, and prints the customer's receipt.
 The tabs at the top of the list cut it down to **Unpaid** or **Waiting**, so you can
 see at a glance what still needs doing. Your staff can work this list too.
 
-### 5. See your daily sales
+### 6. See your daily sales
 
 Pick any day (it opens on today) and see:
 
@@ -79,7 +98,7 @@ Pick any day (it opens on today) and see:
 Your sales figure only counts money you have actually received, which is why an unpaid
 table does not move it.
 
-### 6. Cancel a sale: void or refund
+### 7. Cancel a sale: void or refund
 
 Open any order from the sales list and you get two choices, because two different
 things can go wrong:
@@ -96,12 +115,12 @@ four customers".
 
 Each one asks you to confirm first, because neither can be undone.
 
-### 7. Manage your staff
+### 8. Manage your staff
 
 Add an account for each person who works the till, and switch it off when they leave.
 Their past sales stay on record.
 
-### 8. Track your expenses
+### 9. Track your expenses
 
 Record what you spend — rent, supplies, bills — sorted into your own categories.
 **Every new expense starts with its category**: the dialog asks for it first and will
@@ -112,7 +131,7 @@ The Expenses screen opens on this month and shows your total, how many entries t
 are, your biggest category, and what each category cost you. Pick another month from
 the month box to look back.
 
-### 9. Owner dashboard
+### 10. Owner dashboard
 
 The screen you land on when you sign in. It answers "how is the shop doing?" over
 three spans at once — **today, this month, and this year**:
@@ -139,8 +158,8 @@ Three kinds of login:
 
 - **Owner (you)** — everything: the till, the menu, sales figures, expenses, and staff
   accounts.
-- **Staff** — work the till, the Sales list (marking orders done and paid) and can
-  read the menu. They **cannot** change prices, see the dashboard, touch expenses, or
+- **Staff** — work the till, the Tables screen and the Sales list (marking orders done
+  and paid), and can read the menu. They **cannot** change prices, see the dashboard, touch expenses, or
   manage accounts — and they cannot void or refund an order, which stays your call.
 - **System administrator** — the person who set the platform up. They can create a new
   shop and switch one off, but they **cannot** see any shop's menu, sales or money. Not
