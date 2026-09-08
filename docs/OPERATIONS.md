@@ -36,6 +36,7 @@ dialog. Everything else is required.
 | `DATABASE_URL` | — | Postgres connection string (preferred). SSL is enabled automatically for Neon or when the URL carries `sslmode=require` |
 | `DB_HOST` / `DB_PORT` / `DB_USERNAME` / `DB_PASSWORD` / `DB_DATABASE` | `localhost` / `5432` / `postgres` / `postgres` / `shop_pos` | Fallback connection settings, used only when `DATABASE_URL` is unset |
 | `DB_SSL` | — | `true` forces SSL when using the individual variables |
+| `CORS_ORIGINS` | unset (localhost) | **Set this in production.** Comma-separated origins allowed to call the API. Unset falls back to `localhost:5001` / `localhost:3001`, so a deployed frontend is CORS-blocked |
 | `JWT_SECRET` | — | **Set this.** Token signing key; a long random string |
 | `JWT_EXPIRES_IN` | `1d` | Token lifetime |
 | `SUPER_ADMIN_NAME` / `_EMAIL` / `_PASSWORD` | `Platform Admin` / `admin@shop-pos.local` / `admin123` | Platform administrator seeded on startup |
@@ -128,13 +129,24 @@ Two things to know:
 > The browser verification scripts also work in the demo shop and clear it when they
 > start, so re-run `npm run seed:demo` afterwards to get the demo data back.
 
-## 3b. One-off data step: paid/served backfill
+## 3b. The paid/served backfill
 
 The dine-in change added `is_paid` / `is_served` to `orders`, defaulting to **false**.
 Orders recorded before it were rung up under the old flow, where saving a sale meant
 the money had been taken and the food served — so on any environment that has existing
-orders, they must be backfilled once or they will read as unpaid and drop out of every
-sales figure:
+orders they have to be backfilled, or they read as unpaid and drop out of every sales
+figure.
+
+**This is no longer a manual step.** It is carried by the `BaselineGaps` migration,
+which runs it only where that migration added the columns itself. Where the columns
+already existed, `is_paid = false` means "this table's bill is still open" and marking
+those paid would be corruption rather than a backfill, so it is skipped. The migration
+logs which of the two it did.
+
+Voided and refunded orders are deliberately left alone: they are excluded from takings
+by status either way.
+
+For reference, the equivalent by hand:
 
 ```sql
 update orders
@@ -143,12 +155,6 @@ update orders
  where is_paid = false
    and status = 'COMPLETED';
 ```
-
-Voided and refunded orders are deliberately left alone: they are excluded from takings
-by status either way. This was already run against the development database (27 rows).
-
-> This is the kind of step a migration would carry. Because the project has no
-> committed migrations yet (see §4), it has to be applied by hand per environment.
 
 ## 4. Schema management
 
@@ -174,21 +180,46 @@ picked up by `src/data-source.ts`, which shares one connection config with the a
 `InitialSchema` is the schema as it stood when migrations were introduced: 10 tables,
 5 enums, 12 indexes, 14 foreign keys, and the `uuid-ossp` extension that its
 primary-key defaults need. It was generated against an empty schema and verified by
-building a database from nothing and reverting it again.
+building a database from nothing and reverting it again. Its CREATE TABLE statements
+are **not** conditional, so pointed at a database that already has those tables it
+fails on the first one.
 
-The database that was already running when it was written has that same shape, so the
-migration is **recorded there as applied rather than executed**:
+A database that predates migrations therefore needs `InitialSchema` **recorded as
+applied rather than executed**, and `scripts/mark-baseline.sql` does that by looking at
+the database instead of asking you to remember which kind you are pointed at:
 
-```sql
-create table if not exists migrations (
-  id serial primary key, timestamp bigint not null, name character varying not null);
-insert into migrations (timestamp, name)
-values (1788893312507, 'InitialSchema1788893312507');
+```bash
+cd backend
+psql "$DATABASE_URL" -f scripts/mark-baseline.sql   # once, before the first migration:run
 ```
 
-Any other database that predates migrations needs that same one-off row, or
-`migration:run` will try to create tables that already exist. A fresh database needs
-nothing — it just runs.
+It inserts the baseline row only where the tables already exist, does nothing to an
+empty database, is safe to run twice, and prints which of the two paths it took.
+
+### Filling the gaps: `BaselineGaps`
+
+Recording the baseline assumes the old database really has the baseline's shape, and
+that is not always true. Until this release the connection used
+`synchronize: !isProduction`, so a server running with `NODE_ENV=production` never had
+the entities applied to it at all — the printing tables and the dine-in columns on
+`orders` only ever appeared on environments where synchronize happened to be on.
+
+`BaselineGaps` closes that. Every statement in it is conditional
+(`IF NOT EXISTS`, guarded `DO` blocks), so it fills in what a given database is
+actually missing and does nothing where the objects are already there. It does not
+matter whether the target got its schema from synchronize, from a half-finished deploy,
+or from `InitialSchema` a moment earlier. It also carries the paid/served backfill
+(§3b).
+
+To confirm where a database stands, before or after:
+
+```bash
+psql "$DATABASE_URL" -f scripts/check-schema.sql    # read-only
+```
+
+The definitive check that a database matches the entities is
+`npm run migration:generate -- src/migrations/Drift` pointed at it: if it produces an
+empty migration, there is no drift. Delete the generated file either way.
 
 ### Changing the schema from here
 
@@ -205,7 +236,9 @@ nothing — it just runs.
 
 ### Backend
 
-A multi-stage `Dockerfile` is provided:
+A multi-stage `Dockerfile` is provided. Its entrypoint is `npm run release`, which
+applies migrations and only then starts the app, so a failing migration fails the
+release instead of leaving new code running against an old schema:
 
 ```bash
 cd backend
@@ -213,20 +246,51 @@ docker build -t shop-pos-backend .
 docker run -p 5000:5000 --env-file .env shop-pos-backend
 ```
 
-Without Docker: `npm ci && npm run build && npm run start:prod` (`node dist/main`).
+The migration step runs from the compiled `dist/data-source.js`
+(`npm run migration:run:prod`). The `migration:run` used in development cannot run in
+the image: it goes through `typeorm-ts-node-commonjs` against `src/data-source.ts`, and
+the image has neither `ts-node` (a dev dependency) nor `src/`. The `:prod` variants of
+`migration:run`, `migration:show` and `migration:revert` exist for that reason — use
+them anywhere the app is running from `dist`.
+
+Without Docker: `npm ci && npm run build && npm run release`.
+
+### First deploy against an existing database
+
+The container migrates itself, but a database that predates migrations needs the
+baseline recorded **once, first**, or `InitialSchema` will try to create tables that
+are already there (§4):
+
+```bash
+cd backend
+psql "$DATABASE_URL" -f scripts/check-schema.sql    # see where it stands
+psql "$DATABASE_URL" -f scripts/mark-baseline.sql   # once per such database
+# then deploy as normal; BaselineGaps fills any gaps and backfills paid/served
+psql "$DATABASE_URL" -f scripts/check-schema.sql    # confirm
+```
+
+Take a backup before the first migrating deploy (§8). Nothing here drops data, but
+`mark-baseline.sql` is the one step whose effect depends on the state it finds, and a
+restore point costs nothing.
 
 Checklist before going live:
 
+- [ ] Backup taken of the target database
 - [ ] `NODE_ENV=production` (quietens SQL logging)
-- [ ] `DB_SYNCHRONIZE` unset, and `npm run migration:run` applied against the target database
+- [ ] `DB_SYNCHRONIZE` unset or `false` — the one setting that can destroy data
+- [ ] `scripts/mark-baseline.sql` run, if the database predates migrations
+- [ ] Migrations applied: `npm run migration:show:prod` lists both as `[X]`
+- [ ] `scripts/check-schema.sql` shows no MISSING rows and a plausible
+      `completed_but_unpaid` count
 - [ ] `JWT_SECRET` set to a long random value, unique per environment
 - [ ] `DATABASE_URL` pointing at the managed database, with SSL
-- [ ] Seeded admin and owner passwords changed
-- [ ] Migrations run against the target database
+- [ ] `CORS_ORIGINS` set to the frontend's origin — unset falls back to localhost, so
+      the deployed frontend will be CORS-blocked
+- [ ] `SUPER_ADMIN_PASSWORD` and `OWNER_PASSWORD` set to your own values, at least 10
+      characters and not a published default — the seeder now skips those accounts
+      rather than creating them with a known password
 - [ ] `APP_TIMEZONE` matches the shops' business timezone
 - [ ] TLS terminated in front of the API — tokens travel in the `Authorization` header
-- [ ] CORS reviewed: `main.ts` currently uses `origin: true`, which reflects **any**
-      origin. Restrict it to the frontend's origin for a public deployment.
 
 ### Frontend
 

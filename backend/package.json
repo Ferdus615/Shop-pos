@@ -23,6 +23,10 @@
     "migration:run": "npm run typeorm -- migration:run -d src/data-source.ts",
     "migration:show": "npm run typeorm -- migration:show -d src/data-source.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d src/data-source.ts",
+    "migration:run:prod": "typeorm -d dist/data-source.js migration:run",
+    "migration:show:prod": "typeorm -d dist/data-source.js migration:show",
+    "migration:revert:prod": "typeorm -d dist/data-source.js migration:revert",
+    "release": "npm run migration:run:prod && node dist/main",
     "schema:drop": "npm run typeorm -- schema:drop -d src/data-source.ts",
     "seed": "ts-node -r tsconfig-paths/register src/seed.ts",
     "seed:demo": "ts-node -r tsconfig-paths/register src/seed-demo.ts"

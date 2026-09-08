@@ -48,7 +48,7 @@ export async function runSeeder(app: INestApplicationContext) {
       console.warn(
         `Skipped creating the platform admin "${adminEmail}": set ` +
           'SUPER_ADMIN_PASSWORD to something of your own, at least 10 ' +
-          'characters and not one of this project's published defaults.',
+          "characters and not one of this project's published defaults.",
       );
     } else {
       await usersService.createRaw({
@@ -88,8 +88,8 @@ export async function runSeeder(app: INestApplicationContext) {
   if (!ownerPassword) {
     console.warn(
       `Skipped creating the owner "${ownerEmail}": set OWNER_PASSWORD to ` +
-        "something of your own, at least 10 characters and not one of this " +
-        'project's published defaults.',
+        'something of your own, at least 10 characters and not one of this ' +
+        "project's published defaults.",
     );
     return;
   }
