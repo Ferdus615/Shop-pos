@@ -52,7 +52,7 @@ project works), and — for printing — a paired Bluetooth thermal printer.
 cd backend
 npm install
 cp .env.example .env          # then set DATABASE_URL and JWT_SECRET
-npm run start:dev             # API on http://localhost:3000, Swagger at /docs
+npm run start:dev             # API on http://localhost:5000, Swagger at /docs
 ```
 
 On first start the app seeds a platform administrator, a demo shop, and that shop's
@@ -63,10 +63,10 @@ owner account from the `SUPER_ADMIN_*`, `SEED_SHOP_*` and `OWNER_*` variables.
 ```bash
 cd frontend
 npm install
-npm run dev -- -p 3001        # app on http://localhost:3001
+npm run dev                   # app on http://localhost:5001
 ```
 
-Set `NEXT_PUBLIC_API_URL` if the backend is not on `http://localhost:3000`.
+Set `NEXT_PUBLIC_API_URL` if the backend is not on `http://localhost:5000`.
 
 ### 3. Print bridge (only on the PC the printer is paired to)
 

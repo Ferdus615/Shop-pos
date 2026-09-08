@@ -6,7 +6,7 @@ A live, interactive version of this reference (OpenAPI/Swagger) is served by the
 running backend at **`/docs`**. This document is the narrative companion: it states the
 role each endpoint requires, the tenant rules, and the errors worth handling.
 
-Base URL: `http://localhost:3000` in development.
+Base URL: `http://localhost:5000` in development.
 
 ---
 

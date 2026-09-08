@@ -66,7 +66,7 @@ npm start
 You should see:
 
 ```
-[bridge] starting; backend at http://localhost:3000
+[bridge] starting; backend at http://localhost:5000
 [printer] connected on COM3 at 9600 baud
 [api] signed in as printer@shop.local
 [bridge] local fast path on http://127.0.0.1:9110
@@ -127,7 +127,7 @@ item names, that is the change to make.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `API_URL` | `http://localhost:3000` | POS backend |
+| `API_URL` | `http://localhost:5000` | POS backend |
 | `BRIDGE_EMAIL` / `BRIDGE_PASSWORD` | — | Shop user the bridge signs in as |
 | `PRINTER_PORT` | — | `COM3`, `/dev/rfcomm0`, … |
 | `PRINTER_BAUD` | `9600` | Try `19200`/`115200` if output is garbled |

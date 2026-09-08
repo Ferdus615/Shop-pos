@@ -30,7 +30,7 @@ dialog. Everything else is required.
 | Variable | Default | Purpose |
 | -------- | ------- | ------- |
 | `NODE_ENV` | `development` | `development` enables SQL logging **and TypeORM `synchronize`**; anything else disables both |
-| `PORT` | `3000` | HTTP port |
+| `PORT` | `5000` | HTTP port |
 | `APP_TIMEZONE` | `Asia/Dhaka` | Business timezone for all day/month report boundaries |
 | `DATABASE_URL` | — | Postgres connection string (preferred). SSL is enabled automatically for Neon or when the URL carries `sslmode=require` |
 | `DB_HOST` / `DB_PORT` / `DB_USERNAME` / `DB_PASSWORD` / `DB_DATABASE` | `localhost` / `5432` / `postgres` / `postgres` / `shop_pos` | Fallback connection settings, used only when `DATABASE_URL` is unset |
@@ -45,7 +45,7 @@ dialog. Everything else is required.
 
 | Variable | Default | Purpose |
 | -------- | ------- | ------- |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:3000` | Backend base URL |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:5000` | Backend base URL |
 | `NEXT_PUBLIC_LOCAL_BRIDGE_URL` | `http://127.0.0.1:9110` | Local print bridge fast path; must stay a loopback address |
 
 Both are compiled into the client bundle at build time — rebuild after changing them,
@@ -70,12 +70,12 @@ docker compose up -d           # postgres:16-alpine, volume shop_pos_data, TZ As
 # Backend
 npm install
 cp .env.example .env           # set DATABASE_URL and JWT_SECRET
-npm run start:dev              # http://localhost:3000, Swagger at /docs
+npm run start:dev              # http://localhost:5000, Swagger at /docs
 
 # Frontend
 cd ../frontend
 npm install
-npm run dev -- -p 3001         # http://localhost:3001
+npm run dev                    # http://localhost:5001
 ```
 
 `docker-compose.yml` publishes the container's 5432 on `${DB_PORT:-5432}`. If another
@@ -151,7 +151,7 @@ A multi-stage `Dockerfile` is provided:
 ```bash
 cd backend
 docker build -t shop-pos-backend .
-docker run -p 3000:3000 --env-file .env shop-pos-backend
+docker run -p 5000:5000 --env-file .env shop-pos-backend
 ```
 
 Without Docker: `npm ci && npm run build && npm run start:prod` (`node dist/main`).

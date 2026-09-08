@@ -195,11 +195,11 @@ Verified with headless-browser (Playwright) smoke tests.
 docker compose up -d          # local Postgres — skip if using a hosted database
 npm install
 cp .env.example .env          # set DATABASE_URL and JWT_SECRET
-npm run start:dev             # API on http://localhost:3000, docs at /docs
+npm run start:dev             # API on http://localhost:5000, docs at /docs
 
 # 2. Frontend  (from frontend/)
 npm install
-npm run dev -- -p 3001        # app on http://localhost:3001
+npm run dev                   # app on http://localhost:5001
 
 # 3. Print bridge  (from bridge/, on the PC the printer is paired to)
 npm install
