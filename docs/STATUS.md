@@ -126,6 +126,15 @@ Verified with headless-browser (Playwright) smoke tests.
 - **Staff** (`/staff`, owner) — list users, create staff accounts, edit, deactivate.
 - **Shops** (`/admin/shops`, platform admin) — list shops, create a shop with its owner,
   edit details, suspend and reactivate.
+- **POS** (`/pos`) — a **Pay now / Pay later** choice (pay now by default: settles the
+  order and prints both slips; pay later leaves the bill open and prints the kitchen
+  ticket only), cash-and-change for cash sales, plus an **Open bills** panel: the unpaid bills, each able to take
+  more items or be settled (method, cash, change) with the receipt printing from there.
+  Billing happens only here.
+- **Tables** (`/tables`, owner + staff) — the floor view, grouped by table, with a
+  **Done** button per bill. It marks food served and takes no money.
+- **Sales** is the day's record — table and paid/served state, filters, print, and the
+  owner's void/refund — but no serving or settling.
 - **Dashboard** (`/dashboard`, owner) — reference-day picker; three tiles giving the
   day, month and year at a glance (each doubling as a period switcher); the selected
   period's sales, orders, average basket, expenses and net profit; expenses by category

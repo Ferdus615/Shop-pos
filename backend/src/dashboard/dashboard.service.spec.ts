@@ -30,6 +30,8 @@ describe('DashboardService.getOverview', () => {
   ) => ({
     orderCount,
     totalSales,
+    unpaidOrderCount: 0,
+    unpaidTotal: 0,
     byPaymentMethod: [],
     topItems: itemsSold.slice(0, 5),
     itemsSold,
@@ -190,6 +192,21 @@ describe('DashboardService.getOverview', () => {
     expect(periods.day.sales.itemsSold).toEqual(itemsSold);
     // The ranking is the head of that same list, so the two cannot disagree.
     expect(periods.day.sales.topItems).toEqual(itemsSold.slice(0, 5));
+  });
+
+  it('carries what is still owed into each period', async () => {
+    const service = buildService({
+      daySales: { ...sales(1000, 4), unpaidOrderCount: 2, unpaidTotal: 450 },
+    });
+
+    const { periods } = await service.getOverview(SHOP, '2026-09-06');
+
+    // Takings and what is owed are separate figures, and net profit is
+    // derived from takings alone.
+    expect(periods.day.sales.totalSales).toBe(1000);
+    expect(periods.day.sales.unpaidTotal).toBe(450);
+    expect(periods.day.sales.unpaidOrderCount).toBe(2);
+    expect(periods.day.netProfit).toBe(750);
   });
 
   it('still serves the original today / monthToDate fields', async () => {

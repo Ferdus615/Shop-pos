@@ -68,15 +68,38 @@ describe('OrdersService — tables, paying and serving', () => {
     items: [{ menuItemId: CHA, quantity }],
     paymentMethod: PaymentMethod.CASH,
     tableNumber,
+    // These tests are about tables and bills, so they settle later unless a
+    // test is specifically about paying at the till.
+    markPaid: false,
   });
 
   describe('ringing up', () => {
-    it('starts every order unpaid and unserved', async () => {
+    it('leaves the order unpaid when the customer settles later', async () => {
       const { service, savedOrders } = buildCreateHarness(null);
 
       await service.create(ringUp(), 'user-1', SHOP);
 
       expect(savedOrders[0]).toMatchObject({ isPaid: false, isServed: false });
+      expect(savedOrders[0].paidAt).toBeNull();
+    });
+
+    it('takes the money at the till by default', async () => {
+      const { service, savedOrders } = buildCreateHarness(null);
+
+      // No markPaid at all: paying now is the ordinary case.
+      await service.create(
+        {
+          items: [{ menuItemId: CHA, quantity: 2 }],
+          paymentMethod: PaymentMethod.CASH,
+        },
+        'user-1',
+        SHOP,
+      );
+
+      expect(savedOrders[0].isPaid).toBe(true);
+      expect(savedOrders[0].paidAt).toBeInstanceOf(Date);
+      // The food still has to go out.
+      expect(savedOrders[0].isServed).toBe(false);
     });
 
     it('records the table, trimmed, and null for a counter sale', async () => {
@@ -166,6 +189,28 @@ describe('OrdersService — tables, paying and serving', () => {
         isServed: false,
         servedAt: null,
       });
+    });
+
+    it('settles the whole bill when the table pays at the till', async () => {
+      const { service, updates } = buildCreateHarness(openBill());
+
+      await service.create({ ...ringUp('7'), markPaid: true }, 'user-1', SHOP);
+
+      // The round is added and the bill — earlier rounds included — is closed.
+      expect(updates[0].changes).toMatchObject({
+        subtotal: 160,
+        total: 150,
+        isPaid: true,
+      });
+      expect(updates[0].changes.paidAt).toBeInstanceOf(Date);
+    });
+
+    it('leaves the bill open when the table is settling later', async () => {
+      const { service, updates } = buildCreateHarness(openBill());
+
+      await service.create(ringUp('7'), 'user-1', SHOP);
+
+      expect(updates[0].changes.isPaid).toBeUndefined();
     });
 
     it('starts a fresh bill once the table has paid', async () => {

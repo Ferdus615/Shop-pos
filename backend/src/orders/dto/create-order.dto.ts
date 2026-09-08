@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNumber,
@@ -64,6 +65,18 @@ export class CreateOrderDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   discount?: number;
+
+  @ApiPropertyOptional({
+    example: true,
+    description:
+      'Whether the customer is paying as the order is rung up. The usual' +
+      ' case, so the till sends it true; false leaves the order unpaid for a' +
+      ' table that settles later. Paying a table that already has an open' +
+      ' bill settles that whole bill, since a table has only one.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  markPaid?: boolean;
 
   @ApiPropertyOptional({ example: 0, description: 'Flat tax amount' })
   @IsOptional()

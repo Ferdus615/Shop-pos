@@ -251,13 +251,17 @@ which carry their own name and price snapshot.
 }
 ```
 
+`markPaid` defaults to **true**: the ordinary sale is paid as it is rung up. Send
+`false` for a table that settles later, which leaves the bill open. Paying now for a
+table that already has an unpaid bill settles that **whole** bill — a table has one
+bill, so there is nothing else it could mean.
+
 `tableNumber` is optional free text (max 16 chars); omit it for a counter or takeaway
 sale. **If that table already has an unpaid bill, these items are appended to it** and
 the response is that bill with `appendedToOpenBill: true` — its totals recomputed and
 its serving reopened. Once the table has paid, the next ring-up starts a new order.
 
-Orders are created **unpaid and unserved**: `paymentMethod` here is only the expected
-method, confirmed when the bill is settled.
+Orders are created **unserved** either way — the food has only just been ordered.
 
 The request carries **no prices**. The server prices the order inside a transaction
 from the shop's live menu, merges duplicate lines for the same item, snapshots each

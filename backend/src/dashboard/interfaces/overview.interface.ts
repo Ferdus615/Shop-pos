@@ -11,8 +11,12 @@ export interface PeriodOverview {
   /** YYYY-MM-DD, YYYY-MM or YYYY, depending on the period. */
   label: string;
   sales: {
+    /** Paid orders only, like `totalSales`. */
     orderCount: number;
     totalSales: number;
+    /** Rung up in the period and still owed — not part of takings. */
+    unpaidOrderCount: number;
+    unpaidTotal: number;
     averageOrderValue: number;
     byPaymentMethod: PaymentMethodBreakdown[];
     topItems: TopSellingItem[];

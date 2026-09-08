@@ -107,6 +107,10 @@ export class OrdersService {
       const total = round2(subtotal - discount + tax);
 
       const tableNumber = dto.tableNumber?.trim() || null;
+      // Most sales are paid as they are rung up; a table that settles later
+      // is the exception the till has to ask for.
+      const payingNow = dto.markPaid !== false;
+      const now = new Date();
 
       // A table that still owes money keeps one bill: a second round of
       // ordering is added to it rather than starting a rival bill nobody
@@ -150,6 +154,11 @@ export class OrdersService {
           // Serving starts again: this round has not gone out yet.
           isServed: false,
           servedAt: null,
+          // Paying now settles the whole bill, this round included — a table
+          // has one bill, so there is nothing else it could mean.
+          ...(payingNow
+            ? { isPaid: true, paidAt: now, paymentMethod: dto.paymentMethod }
+            : {}),
         });
 
         const updated = await manager.findOneOrFail(Order, {
@@ -169,9 +178,10 @@ export class OrdersService {
         total,
         paymentMethod: dto.paymentMethod,
         status: OrderStatus.COMPLETED,
-        // Orders start unpaid and unserved: the money is taken and the food
-        // goes out after the ring-up, each marked when it actually happens.
-        isPaid: false,
+        // Paid at the till unless the customer is settling later. Serving is
+        // always still to come — the food has only just been ordered.
+        isPaid: payingNow,
+        paidAt: payingNow ? now : null,
         isServed: false,
         createdById: userId,
         items: orderItems,

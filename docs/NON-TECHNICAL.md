@@ -26,11 +26,19 @@ whether it's currently available. You can change prices any time.
 ### 2. Ring up an order
 
 Pick what the customer is buying and how many of each, put in the **table number**
-(leave it empty for a counter or takeaway sale), and send the order. The kitchen ticket
-prints straight away with the table in big letters.
+(leave it empty for a counter or takeaway sale), and send the order.
 
-Nothing is treated as money yet — the order goes on the Sales list as **unpaid** and
-**waiting**. You never do the maths; it always uses your current menu prices.
+Then choose when it is being paid — **Pay now** is already selected, because that is
+what nearly every sale is:
+
+- **Pay now** — take the money there and then. Put in the cash received and it works
+  out the change. It prints **the receipt and the kitchen ticket**.
+- **Pay later** — for the occasional table that will settle at the end. The bill stays
+  open and it prints **only the kitchen ticket**; the receipt comes out when they pay,
+  from Open bills.
+
+Either way the kitchen ticket goes out immediately with the table in big letters, and
+you never do the maths — it always uses your current menu prices.
 
 **If the table orders again before paying**, the new items join the same bill rather
 than starting a second one, so there is only ever one bill to settle per table. Once
@@ -57,7 +65,8 @@ table:
 
 - what is on each bill, and how long it has been waiting,
 - an amber warning once something has been waiting more than 15 minutes,
-- **Done** and **Paid** buttons right there on the card,
+- a **Done** button right there on the card — this screen is about food going out, not
+  about money,
 - a table with two rounds shows both bills together under one heading,
 - counter and takeaway orders are grouped under "Counter".
 
@@ -68,31 +77,35 @@ everything is served and settled, it simply says "Nothing open".
 
 Your staff have this screen too.
 
-### 5. Mark orders done and paid
+### 5. Taking the money: Open bills at the till
 
-The Sales list is the working list for the floor. Each order shows two things at once:
+Billing happens at the till. The POS has an **Open bills** button showing how many
+bills are still unpaid; tap it and you get the list. Tap a bill to see what is on it,
+then either:
 
-- **Done / Waiting** — whether the food has gone out.
-- **Paid / Unpaid** — whether the money has been taken.
+- **Add items** — points the till at that table, so what you ring up next joins its
+  bill, or
+- **Take payment** — asks how they paid (cash, bKash or Nagad), works out the change
+  for cash, marks the bill paid, and prints the customer's receipt.
 
-They are separate on purpose: food often goes out long before the bill is settled, and
-sometimes the other way round. Tap **Done** when the food is served, and **Paid** when
-they pay — that asks how they paid (cash, bKash or Nagad), works out the change if it
-is cash, and prints the customer's receipt.
-
-The tabs at the top of the list cut it down to **Unpaid** or **Waiting**, so you can
-see at a glance what still needs doing. Your staff can work this list too.
+That is the only place money is taken, so there is never a question of where to settle
+up. Each screen has one job: the till bills, the Tables screen serves, and Sales is the
+record of the day.
 
 ### 6. See your daily sales
 
 Pick any day (it opens on today) and see:
+
+It is a record, not a worklist: no buttons to serve or settle, but it still shows each
+order's table and whether the money came in.
 
 - **Collected** — money actually taken that day,
 - **Unpaid** — rung up but not settled yet, shown apart in amber so it is never
   mistaken for takings,
 - how many paid orders and the average,
 - how customers paid,
-- your best-selling items,
+- your best-selling items — **All** shows the top five across the shop, or tap a
+  category to see everything that sold in it,
 - every order from that day, with the details of each.
 
 Your sales figure only counts money you have actually received, which is why an unpaid

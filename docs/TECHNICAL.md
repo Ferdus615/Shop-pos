@@ -273,6 +273,19 @@ can be settled before the last dish arrives.
   moment anyone knows it. `POST /orders/:id/unpay` corrects a mis-click and is
   owner-only — it is not a refund, since no money moved.
 - **Serving toggles**: `POST /orders/:id/serve` and `/unserve`.
+- **Paying now is the default.** The till asks *when* the bill is paid, not
+  whether: "Pay now" (selected by default) creates the order already settled and
+  prints **both** slips, while "Pay later" leaves it unpaid and prints **only the
+  kitchen ticket** — the customer's receipt then comes from Open bills when they
+  settle. `POST /orders` carries `markPaid` (default `true`); paying now for a table
+  that already has an open bill settles that whole bill, since a table has only one.
+- **Each screen does one job.** Billing happens at the **POS**: an "Open bills" panel
+  lists the unpaid bills, and one can be added to (which points the till at that table,
+  so the next ring-up appends) or settled — the receipt prints from there. **Tables**
+  marks food served and takes no money. **Sales** is the day's record: it shows the
+  table and the paid/served state and can void, refund or reprint, but it neither
+  serves nor settles. One place per action, so there is never a question of which
+  screen is authoritative.
 - **The floor view reads `GET /orders/open`** — every `COMPLETED` order that is unpaid
   or unserved, oldest first. Deliberately **not** filtered by date: a bill opened
   before midnight is the same bill afterwards, and a view that dropped it at the day
@@ -429,6 +442,11 @@ slip to a bitmap and sending it as a raster image (`GS v 0`) — a change in
   invalidating the keys they affect. Components hold no fetching logic.
 - **Money formatting** is centralised in `src/lib/format.ts` (fixed two decimals, no
   currency symbol — currency configuration is still outstanding).
+- **Best sellers filter by one category at a time.** "All" is the top five across
+  everything; picking a category lists **all** of its items instead of cutting at
+  five, because a quiet item in a small category is invisible in a global top five.
+  The choice is per-visit state, not persisted — a remembered filter on a figure card
+  reads as missing data.
 - **The one chart is hand-rolled SVG** (`dashboard/monthly-trend-chart.tsx`) rather
   than a charting dependency: grouped columns on a single axis, since both series are
   money. Its two series colours live in `globals.css` as `--viz-*` tokens, stepped

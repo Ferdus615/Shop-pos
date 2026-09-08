@@ -95,6 +95,38 @@ the schema is created by TypeORM `synchronize`; in production, run migrations fi
 
 ---
 
+## 3a. Demo data for trying the app out
+
+`npm run seed:demo` fills the **demo shop** with a plausible five months of trading so
+every screen has something real in it: a 16-item menu, ~2,300 settled orders, expenses
+across five months, and today left mid-service — a table two rounds in, one waiting too
+long, one paid but still cooking, one served and unpaid, a counter order, plus a voided
+and a refunded order on the record.
+
+```bash
+cd backend
+npm run seed:demo
+```
+
+It takes about 20 seconds. Logins it reports:
+
+| Role | Email | Password |
+| ---- | ----- | -------- |
+| Shop owner | `owner@shop.local` | `owner123` |
+| Staff (waiter) | `staff@shop.local` | `staff123` |
+
+Two things to know:
+
+- **It clears the demo shop's trading data first**, so re-running gives the same result
+  rather than piling up. Menu, orders, expenses and their categories are replaced; user
+  accounts are left alone.
+- **It refuses to run against a real shop.** It only writes to the shop named by
+  `SEED_SHOP_SLUG` (default `demo-shop`), and the slugs of the live shops are hard-coded
+  as protected, so pointing the variable at one aborts instead.
+
+> The browser verification scripts also work in the demo shop and clear it when they
+> start, so re-run `npm run seed:demo` afterwards to get the demo data back.
+
 ## 3b. One-off data step: paid/served backfill
 
 The dine-in change added `is_paid` / `is_served` to `orders`, defaulting to **false**.

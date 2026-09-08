@@ -23,7 +23,8 @@
     "migration:run": "npm run typeorm -- migration:run -d src/data-source.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d src/data-source.ts",
     "schema:drop": "npm run typeorm -- schema:drop -d src/data-source.ts",
-    "seed": "ts-node -r tsconfig-paths/register src/seed.ts"
+    "seed": "ts-node -r tsconfig-paths/register src/seed.ts",
+    "seed:demo": "ts-node -r tsconfig-paths/register src/seed-demo.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
