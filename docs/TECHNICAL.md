@@ -279,13 +279,21 @@ can be settled before the last dish arrives.
   kitchen ticket** — the customer's receipt then comes from Open bills when they
   settle. `POST /orders` carries `markPaid` (default `true`); paying now for a table
   that already has an open bill settles that whole bill, since a table has only one.
-- **Each screen does one job.** Billing happens at the **POS**: an "Open bills" panel
-  lists the unpaid bills, and one can be added to (which points the till at that table,
-  so the next ring-up appends) or settled — the receipt prints from there. **Tables**
-  marks food served and takes no money. **Sales** is the day's record: it shows the
-  table and the paid/served state and can void, refund or reprint, but it neither
-  serves nor settles. One place per action, so there is never a question of which
-  screen is authoritative.
+- **Serving and settling are separate queues, and each screen shows one of them.**
+  **Tables** is the serving queue: the orders whose food has not gone out. Marking one
+  Done takes it off that screen — a table needing nothing carried to it does not belong
+  in a floor view — and an unpaid bill there also offers **Paid**, because the customer
+  is sitting in front of you; a paid one offers only Done. **Sales** is the day's record
+  and the place a bill is settled once it has been served and left the floor: unpaid
+  rows carry a **Paid** button, and the owner can void, refund or reprint. The **POS**
+  bills too, through its Open bills panel, which lists what is unpaid whether or not it
+  has been served.
+- **One endpoint, two readings.** `GET /orders/open` returns everything unpaid **or**
+  unserved; Tables filters it to unserved and the POS panel to unpaid. The union is
+  deliberate — a single query answers both questions, and neither screen has to guess
+  what the other means.
+- **Undoing a Done** lives on the confirmation toast rather than a button, since the
+  card it would belong to has by then left the screen.
 - **The floor view reads `GET /orders/open`** — every `COMPLETED` order that is unpaid
   or unserved, oldest first. Deliberately **not** filtered by date: a bill opened
   before midnight is the same bill afterwards, and a view that dropped it at the day

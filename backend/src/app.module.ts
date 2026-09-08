@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ClassSerializerInterceptor } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -20,6 +21,15 @@ import { UsersModule } from './users/users.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    /**
+     * A ceiling on requests per IP. It exists for `POST /auth/login` above
+     * all: without it, the only thing standing between a guessed password and
+     * a shop's takings is how fast an attacker can send requests.
+     */
+    ThrottlerModule.forRoot([
+      { name: 'short', ttl: 1000, limit: 20 },
+      { name: 'long', ttl: 60_000, limit: 120 },
+    ]),
     TypeOrmModule.forRootAsync({
       useFactory: () => ({
         ...buildDataSourceOptions(),
@@ -37,6 +47,9 @@ import { UsersModule } from './users/users.module';
   ],
   controllers: [AppController],
   providers: [
+    // Rate limiting first: a throttled request should not reach the database
+    // to have its password checked.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     // Global JWT authentication (skipped on @Public routes)...
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     // ...then role-based authorization...

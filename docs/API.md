@@ -301,8 +301,12 @@ discount exceeds the subtotal.
 
 Every `COMPLETED` order that is **unpaid or unserved**, with its lines, oldest first.
 Not filtered by date — a bill opened before midnight is still open afterwards, so a
-day filter would hide a table that is still sitting there. This is what the Tables
-view reads, and it polls.
+day filter would hide a table that is still sitting there.
+
+The union serves two screens, each filtering it: **Tables** takes the *unserved* ones
+(its job is the food still to go out) and the POS's **Open bills** panel takes the
+*unpaid* ones (its job is money still to collect). An order that is served but unpaid
+appears in neither — it is settled from the Sales list.
 
 ### Settling and serving — `POST /orders/:id/pay`, `/serve`
 

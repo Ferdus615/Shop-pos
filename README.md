@@ -52,6 +52,7 @@ project works), and — for printing — a paired Bluetooth thermal printer.
 cd backend
 npm install
 cp .env.example .env          # then set DATABASE_URL and JWT_SECRET
+npm run migration:run         # creates the schema — nothing else does
 npm run start:dev             # API on http://localhost:5000, Swagger at /docs
 ```
 

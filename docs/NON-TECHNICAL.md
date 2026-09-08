@@ -59,21 +59,27 @@ names on the menu.
 
 ### 4. The Tables screen
 
-This is the screen for whoever is working the floor. It shows **only what still needs
-doing** — every table that is waiting for food, owes money, or both — as one card per
-table:
+This is the screen for whoever is working the floor. It shows **only the food still to
+go out** — one card per table:
 
 - what is on each bill, and how long it has been waiting,
 - an amber warning once something has been waiting more than 15 minutes,
-- a **Done** button right there on the card — this screen is about food going out, not
-  about money,
+- a **Done** button on every card, which takes it off this screen once the food has
+  gone out,
+- a **Paid** button as well when the bill has not been settled — the customer is
+  sitting right there, so you can take the money without walking to the till. A bill
+  that is already paid shows only Done.
 - a table with two rounds shows both bills together under one heading,
 - counter and takeaway orders are grouped under "Counter".
 
-Along the top it tells you how many tables are open, how many orders are waiting to go
-out, and how much money is still unsettled. It refreshes itself every few seconds, so
-two people can work from it at once and each sees what the other has marked. When
-everything is served and settled, it simply says "Nothing open".
+Along the top it tells you how many tables are waiting, how many orders are still to
+serve, and how much of that is unpaid. It refreshes itself every few seconds, so two
+people can work from it at once and each sees what the other has marked. When
+everything has gone out, it simply says "Nothing waiting".
+
+If you mark something Done by mistake, the confirmation that appears has an **Undo** on
+it. And if a table eats and leaves the screen without paying, the bill is not lost —
+it is on Sales under **Unpaid**, with a Paid button of its own.
 
 Your staff have this screen too.
 
@@ -96,8 +102,9 @@ record of the day.
 
 Pick any day (it opens on today) and see:
 
-It is a record, not a worklist: no buttons to serve or settle, but it still shows each
-order's table and whether the money came in.
+It is the day's record, and the place to settle a bill that has already been served:
+each unpaid order carries a **Paid** button. There is nothing here for serving — that
+is the Tables screen's job.
 
 - **Collected** — money actually taken that day,
 - **Unpaid** — rung up but not settled yet, shown apart in amber so it is never

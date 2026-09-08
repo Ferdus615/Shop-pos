@@ -7,6 +7,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { NoShopRequired } from '../common/decorators/no-shop-required.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -20,6 +21,9 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  // Five attempts a minute per IP: generous for someone mistyping their own
+  // password, useless for working through a password list.
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Log in and receive a JWT access token' })

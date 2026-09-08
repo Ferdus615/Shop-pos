@@ -29,7 +29,8 @@ dialog. Everything else is required.
 
 | Variable | Default | Purpose |
 | -------- | ------- | ------- |
-| `NODE_ENV` | `development` | `development` enables SQL logging **and TypeORM `synchronize`**; anything else disables both |
+| `NODE_ENV` | `development` | `development` enables SQL logging. It no longer affects the schema — see `DB_SYNCHRONIZE` |
+| `DB_SYNCHRONIZE` | unset (off) | `true` lets TypeORM reshape the schema from the entities on boot. **Only for a throwaway database** — it will drop a column an entity has stopped declaring |
 | `PORT` | `5000` | HTTP port |
 | `APP_TIMEZONE` | `Asia/Dhaka` | Business timezone for all day/month report boundaries |
 | `DATABASE_URL` | — | Postgres connection string (preferred). SSL is enabled automatically for Neon or when the URL carries `sslmode=require` |
@@ -151,26 +152,52 @@ by status either way. This was already run against the development database (27 
 
 ## 4. Schema management
 
-**Development** uses TypeORM `synchronize: true` (derived from `NODE_ENV !==
-'production'`), which reshapes the schema to match the entities on every start. Fast,
-and safe only against a throwaway database.
-
-**Production** must set `NODE_ENV=production`, which disables `synchronize`, and use
-migrations:
+**Migrations are the only way the schema changes.** `synchronize` is off unless
+`DB_SYNCHRONIZE=true` is set explicitly — it used to be on whenever `NODE_ENV` was not
+exactly `production`, which meant one unset variable on a server was enough to let a
+deploy reshape the live database and drop any column an entity had stopped declaring.
 
 ```bash
 cd backend
-npm run migration:generate -- src/migrations/DescriptiveName   # after changing entities
-npm run migration:run                                          # apply
-npm run migration:revert                                       # roll back the last one
+npm run migration:run                                        # apply pending
+npm run migration:show                                       # what is applied
+npm run migration:generate -- src/migrations/WhatChanged      # after editing entities
+npm run migration:revert                                     # roll back the last one
 ```
 
-Migrations live in `src/migrations/` and are picked up by `src/data-source.ts`, which
-shares one connection config with the app (`config/data-source-options.ts`).
+Run `migration:run` **before** starting the app against a new database — nothing
+creates the schema for you any more. Migrations live in `src/migrations/` and are
+picked up by `src/data-source.ts`, which shares one connection config with the app.
 
-> The repository currently has no committed migrations — the schema has only ever been
-> created by `synchronize`. Generate the initial migration against an empty database
-> before the first production deploy, otherwise there is no reproducible schema.
+### The baseline migration
+
+`InitialSchema` is the schema as it stood when migrations were introduced: 10 tables,
+5 enums, 12 indexes, 14 foreign keys, and the `uuid-ossp` extension that its
+primary-key defaults need. It was generated against an empty schema and verified by
+building a database from nothing and reverting it again.
+
+The database that was already running when it was written has that same shape, so the
+migration is **recorded there as applied rather than executed**:
+
+```sql
+create table if not exists migrations (
+  id serial primary key, timestamp bigint not null, name character varying not null);
+insert into migrations (timestamp, name)
+values (1788893312507, 'InitialSchema1788893312507');
+```
+
+Any other database that predates migrations needs that same one-off row, or
+`migration:run` will try to create tables that already exist. A fresh database needs
+nothing — it just runs.
+
+### Changing the schema from here
+
+1. Edit the entity.
+2. `npm run migration:generate -- src/migrations/WhatChanged`. It diffs the entities
+   against whatever the connection points at, so point it at an up-to-date database.
+3. **Read the generated SQL.** A generator that has decided to drop a column will say
+   so plainly, and that is the moment to catch it.
+4. `npm run migration:run`, then commit the file.
 
 ---
 
@@ -190,7 +217,8 @@ Without Docker: `npm ci && npm run build && npm run start:prod` (`node dist/main
 
 Checklist before going live:
 
-- [ ] `NODE_ENV=production` (disables `synchronize` and SQL logging)
+- [ ] `NODE_ENV=production` (quietens SQL logging)
+- [ ] `DB_SYNCHRONIZE` unset, and `npm run migration:run` applied against the target database
 - [ ] `JWT_SECRET` set to a long random value, unique per environment
 - [ ] `DATABASE_URL` pointing at the managed database, with SSL
 - [ ] Seeded admin and owner passwords changed

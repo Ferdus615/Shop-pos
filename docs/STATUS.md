@@ -131,10 +131,11 @@ Verified with headless-browser (Playwright) smoke tests.
   ticket only), cash-and-change for cash sales, plus an **Open bills** panel: the unpaid bills, each able to take
   more items or be settled (method, cash, change) with the receipt printing from there.
   Billing happens only here.
-- **Tables** (`/tables`, owner + staff) — the floor view, grouped by table, with a
-  **Done** button per bill. It marks food served and takes no money.
-- **Sales** is the day's record — table and paid/served state, filters, print, and the
-  owner's void/refund — but no serving or settling.
+- **Tables** (`/tables`, owner + staff) — the serving queue, grouped by table: the
+  orders whose food has not gone out. **Done** takes a card off the screen (with an
+  Undo on the confirmation); an unpaid bill also offers **Paid**, a paid one only Done.
+- **Sales** — the day's record and where a served-but-unpaid bill is settled: unpaid
+  rows carry **Paid**, plus filters, print and the owner's void/refund. No serving.
 - **Dashboard** (`/dashboard`, owner) — reference-day picker; three tiles giving the
   day, month and year at a glance (each doubling as a period switcher); the selected
   period's sales, orders, average basket, expenses and net profit; expenses by category
@@ -177,8 +178,9 @@ Verified with headless-browser (Playwright) smoke tests.
 
 ### Engineering
 
-- Commit the initial TypeORM migration — the schema has so far only ever been created
-  by `synchronize`, so there is no reproducible production schema yet.
+- ~~Commit the initial TypeORM migration~~ — done: `InitialSchema` builds the whole
+  schema from nothing (verified by running and reverting it against an empty schema),
+  and `synchronize` is now off unless `DB_SYNCHRONIZE=true` is set explicitly.
 - Turn the manual end-to-end smoke runs into a committed Nest e2e suite, and add
   per-service unit tests.
 - Restrict CORS to known origins and add rate limiting on `POST /auth/login` before any

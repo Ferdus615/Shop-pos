@@ -17,8 +17,24 @@ async function bootstrap() {
     console.error('Seeding failed but continuing startup:', error);
   }
 
-  // Allow the (future) Next.js frontend to call the API.
-  app.enableCors({ origin: true, credentials: true });
+  /**
+   * Only the shop's own front ends may call this API.
+   *
+   * `origin: true` reflected whatever origin asked, which let any website on
+   * the internet make browser requests against a deployment. The allowlist
+   * comes from CORS_ORIGINS (comma-separated); with nothing set it stays on
+   * localhost, so a deployment that forgets the variable fails visibly in the
+   * browser instead of being quietly open to everyone.
+   */
+  const allowedOrigins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const origins = allowedOrigins.length
+    ? allowedOrigins
+    : ['http://localhost:5001', 'http://localhost:3001'];
+  app.enableCors({ origin: origins, credentials: true });
+  console.log(`CORS allows: ${origins.join(', ')}`);
 
   app.useGlobalPipes(
     new ValidationPipe({
