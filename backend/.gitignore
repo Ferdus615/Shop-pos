@@ -27,3 +27,6 @@ yarn-error.log*
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Shop data exports (scripts/export-shop.js) — never commit real trading data
+backups/
