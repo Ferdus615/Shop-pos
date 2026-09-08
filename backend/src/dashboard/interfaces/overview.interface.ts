@@ -2,6 +2,7 @@ import { ExpenseCategoryBreakdown } from '../../expenses/interfaces/expense-summ
 import {
   PaymentMethodBreakdown,
   SalesSummary,
+  SoldItem,
   TopSellingItem,
 } from '../../orders/interfaces/sales-summary.interface';
 
@@ -10,11 +11,17 @@ export interface PeriodOverview {
   /** YYYY-MM-DD, YYYY-MM or YYYY, depending on the period. */
   label: string;
   sales: {
+    /** Paid orders only, like `totalSales`. */
     orderCount: number;
     totalSales: number;
+    /** Rung up in the period and still owed — not part of takings. */
+    unpaidOrderCount: number;
+    unpaidTotal: number;
     averageOrderValue: number;
     byPaymentMethod: PaymentMethodBreakdown[];
     topItems: TopSellingItem[];
+    /** Every item sold in the period and how many — not just the top few. */
+    itemsSold: SoldItem[];
   };
   expenses: {
     expenseCount: number;

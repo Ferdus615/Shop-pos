@@ -13,6 +13,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { PayOrderDto } from './dto/pay-order.dto';
 import { QueryOrdersDto } from './dto/query-orders.dto';
 import { SalesSummaryQueryDto } from './dto/sales-summary-query.dto';
 import { OrdersService } from './orders.service';
@@ -34,15 +35,25 @@ export class OrdersController {
     return this.ordersService.create(dto, userId, shopId);
   }
 
-  // Daily sales summary: owner only. Declared before ':id' to avoid clashing.
+  // Owner + staff: staff work the sales page to settle and serve orders, so
+  // they see the same day's figures. Declared before ':id' to avoid clashing.
   @Get('summary')
-  @Roles(Role.OWNER)
   @ApiOperation({ summary: 'Daily sales summary (defaults to today)' })
   getSummary(
     @Query() query: SalesSummaryQueryDto,
     @CurrentShop() shopId: string,
   ) {
     return this.ordersService.getSalesSummary(shopId, query.date);
+  }
+
+  /**
+   * The floor view's list: still unpaid, still unserved, or both. Declared
+   * before ':id' so the literal path wins.
+   */
+  @Get('open')
+  @ApiOperation({ summary: 'Orders still to be served or settled' })
+  findOpen(@CurrentShop() shopId: string) {
+    return this.ordersService.findOpen(shopId);
   }
 
   @Get()
@@ -74,5 +85,43 @@ export class OrdersController {
     @CurrentShop() shopId: string,
   ) {
     return this.ordersService.refund(id, shopId);
+  }
+
+  // --- Settling and serving: owner + staff, this is floor work ---
+
+  @Post(':id/pay')
+  @ApiOperation({ summary: 'Mark an order paid, confirming how they paid' })
+  pay(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: PayOrderDto,
+    @CurrentShop() shopId: string,
+  ) {
+    return this.ordersService.pay(id, dto, shopId);
+  }
+
+  /**
+   * Undoing a payment is owner-only: it corrects a mis-click, and letting
+   * anyone move an order back out of the day's takings is not floor work.
+   */
+  @Post(':id/unpay')
+  @Roles(Role.OWNER)
+  @ApiOperation({ summary: 'Undo a payment marked in error (owner only)' })
+  unpay(@Param('id', ParseUUIDPipe) id: string, @CurrentShop() shopId: string) {
+    return this.ordersService.unpay(id, shopId);
+  }
+
+  @Post(':id/serve')
+  @ApiOperation({ summary: 'Mark the food as served' })
+  serve(@Param('id', ParseUUIDPipe) id: string, @CurrentShop() shopId: string) {
+    return this.ordersService.setServed(id, true, shopId);
+  }
+
+  @Post(':id/unserve')
+  @ApiOperation({ summary: 'Take back a premature "served"' })
+  unserve(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentShop() shopId: string,
+  ) {
+    return this.ordersService.setServed(id, false, shopId);
   }
 }

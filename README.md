@@ -52,21 +52,28 @@ project works), and — for printing — a paired Bluetooth thermal printer.
 cd backend
 npm install
 cp .env.example .env          # then set DATABASE_URL and JWT_SECRET
-npm run start:dev             # API on http://localhost:3000, Swagger at /docs
+npm run migration:run         # creates the schema — nothing else does
+npm run start:dev             # API on http://localhost:5000, Swagger at /docs
 ```
 
 On first start the app seeds a platform administrator, a demo shop, and that shop's
 owner account from the `SUPER_ADMIN_*`, `SEED_SHOP_*` and `OWNER_*` variables.
+
+For something to actually look at, fill the demo shop with five months of trading:
+
+```bash
+npm run seed:demo        # ~20s; safe to re-run, only ever touches the demo shop
+```
 
 ### 2. Frontend
 
 ```bash
 cd frontend
 npm install
-npm run dev -- -p 3001        # app on http://localhost:3001
+npm run dev                   # app on http://localhost:5001
 ```
 
-Set `NEXT_PUBLIC_API_URL` if the backend is not on `http://localhost:3000`.
+Set `NEXT_PUBLIC_API_URL` if the backend is not on `http://localhost:5000`.
 
 ### 3. Print bridge (only on the PC the printer is paired to)
 
@@ -84,6 +91,7 @@ Default seeded logins — development only; change them before any real use:
 | ---- | ----- | -------- |
 | Platform admin | `admin@shop-pos.local` | `admin123` |
 | Shop owner | `owner@shop.local` | `owner123` |
+| Staff (created by `seed:demo`) | `staff@shop.local` | `staff123` |
 
 ---
 

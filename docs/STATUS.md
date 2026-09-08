@@ -15,9 +15,9 @@ This complements the other docs:
 
 - **Backend:** ✅ Complete for every planned feature, plus multi-tenancy, refunds and
   the print queue.
-- **Frontend:** 🟡 Every planned screen is built — till, sales, menu, expenses,
-  staff, shops and the owner dashboard, which is where owners now land. Only the void
-  action remains.
+- **Frontend:** ✅ Every planned screen and action is built — till, sales (with void
+  and refund), menu, expenses, staff, shops, and the owner dashboard, which is where
+  owners land.
 - **Print bridge:** ✅ Complete and verified against live hardware.
 
 | Feature | Backend API | Frontend UI |
@@ -26,10 +26,13 @@ This complements the other docs:
 | Multi-tenancy — shops, platform administrator | ✅ Done | ✅ Done |
 | Menu management (categories + items) | ✅ Done | ✅ Done |
 | POS — ring up sales | ✅ Done | ✅ Done |
+| Table numbers + one bill per open table | ✅ Done | ✅ Done |
+| Mark orders done (served) and paid | ✅ Done | ✅ Done |
+| Open-tables floor view | ✅ Done | ✅ Done |
 | Sales tracking (daily) | ✅ Done | ✅ Done |
 | Staff / user management | ✅ Done | ✅ Done |
 | Refund an order | ✅ Done | ✅ Done |
-| Void an order | ✅ Done | ⬜ To do |
+| Void an order | ✅ Done | ✅ Done |
 | Bluetooth receipt printing (print bridge) | ✅ Done | ✅ Done |
 | Expense tracking (monthly) | ✅ Done | ✅ Done |
 | Owner dashboard (day / month / year + trend) | ✅ Done | ✅ Done |
@@ -56,6 +59,12 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started
 - **Orders (POS)** — server-side pricing inside a transaction, duplicate-line merging,
   name/price snapshots, per-shop order numbering, list with date and status filters,
   void and refund.
+- **Open orders** — `GET /orders/open` returns everything still to serve or settle,
+  unfiltered by date so a bill survives midnight.
+- **Dine-in** — orders carry a table number and start unpaid/unserved; a table's second
+  round is appended to its open bill until it is settled; paying confirms the method
+  actually used and stamps `paidAt`; serving toggles independently. Takings count paid
+  orders only, with what is still owed reported separately.
 - **Sales tracking** — daily summary: total, order count, payment-method breakdown, top
   five items.
 - **Expenses** — categories and expenses CRUD, monthly summary with per-category
@@ -112,10 +121,21 @@ Verified with headless-browser (Playwright) smoke tests.
 - **Menu management** (`/menu`, owner) — full CRUD for categories and items.
 - **Sales tracking** (`/sales`, owner) — date picker defaulting to today, total sales,
   order count, average order value, payment-method breakdown, top items, the day's
-  orders, order detail, and refund.
+  orders, order detail, and both **void** and **refund** on a completed order — each
+  behind a confirmation, since neither can be undone.
 - **Staff** (`/staff`, owner) — list users, create staff accounts, edit, deactivate.
 - **Shops** (`/admin/shops`, platform admin) — list shops, create a shop with its owner,
   edit details, suspend and reactivate.
+- **POS** (`/pos`) — a **Pay now / Pay later** choice (pay now by default: settles the
+  order and prints both slips; pay later leaves the bill open and prints the kitchen
+  ticket only), cash-and-change for cash sales, plus an **Open bills** panel: the unpaid bills, each able to take
+  more items or be settled (method, cash, change) with the receipt printing from there.
+  Billing happens only here.
+- **Tables** (`/tables`, owner + staff) — the serving queue, grouped by table: the
+  orders whose food has not gone out. **Done** takes a card off the screen (with an
+  Undo on the confirmation); an unpaid bill also offers **Paid**, a paid one only Done.
+- **Sales** — the day's record and where a served-but-unpaid bill is settled: unpaid
+  rows carry **Paid**, plus filters, print and the owner's void/refund. No serving.
 - **Dashboard** (`/dashboard`, owner) — reference-day picker; three tiles giving the
   day, month and year at a glance (each doubling as a period switcher); the selected
   period's sales, orders, average basket, expenses and net profit; expenses by category
@@ -136,10 +156,17 @@ Verified with headless-browser (Playwright) smoke tests.
 
 ## 3. To do
 
-### Frontend — remaining (the backend already supports all of these)
+### Known gaps in the new dine-in flow
 
-1. **Void an order** — an owner action in the sales order list, alongside refund,
-   calling `POST /orders/:id/void`.
+- **`paidAt` / `servedAt` are recorded but never shown.** They are there so
+  "how long from order to served" is available later without a migration.
+- **Staff still land on the till**, not the Tables view. Making Tables the staff
+  landing page is a one-line change in `frontend/src/lib/routes.ts` (`homeFor`).
+- **The long-wait threshold is fixed at 15 minutes** in the Tables view, not
+  configurable per shop.
+- **The manual "Print receipt" icon still uses the browser dialog**, while the receipt
+  printed at payment goes through the bridge to the thermal printer.
+- **One table, one open bill.** Splitting a bill between customers is not supported.
 
 ### Polish
 
@@ -151,8 +178,9 @@ Verified with headless-browser (Playwright) smoke tests.
 
 ### Engineering
 
-- Commit the initial TypeORM migration — the schema has so far only ever been created
-  by `synchronize`, so there is no reproducible production schema yet.
+- ~~Commit the initial TypeORM migration~~ — done: `InitialSchema` builds the whole
+  schema from nothing (verified by running and reverting it against an empty schema),
+  and `synchronize` is now off unless `DB_SYNCHRONIZE=true` is set explicitly.
 - Turn the manual end-to-end smoke runs into a committed Nest e2e suite, and add
   per-service unit tests.
 - Restrict CORS to known origins and add rate limiting on `POST /auth/login` before any
@@ -178,11 +206,11 @@ Verified with headless-browser (Playwright) smoke tests.
 docker compose up -d          # local Postgres — skip if using a hosted database
 npm install
 cp .env.example .env          # set DATABASE_URL and JWT_SECRET
-npm run start:dev             # API on http://localhost:3000, docs at /docs
+npm run start:dev             # API on http://localhost:5000, docs at /docs
 
 # 2. Frontend  (from frontend/)
 npm install
-npm run dev -- -p 3001        # app on http://localhost:3001
+npm run dev                   # app on http://localhost:5001
 
 # 3. Print bridge  (from bridge/, on the PC the printer is paired to)
 npm install
@@ -207,8 +235,9 @@ day — are covered in the [OPERATIONS.md runbook](OPERATIONS.md#9-runbook).
 
 ## 5. Suggested next step
 
-Phase 2's screens are all built. The one cheap finishing touch left is the **void
-action** in the sales list. After that, the highest-value work is engineering rather
-than features: commit the initial migration, and turn the browser suites used to
-verify expenses, the role guard, the landing routes and the dashboard into a committed
-test run.
+Phase 2 is complete — every planned screen and action is built and verified. The
+highest-value work now is engineering rather than features: commit the initial
+migration (the schema has still only ever come from `synchronize`), and turn the
+browser suites used to verify expenses, the role guard, the landing routes, the
+dashboard and void/refund into a committed test run so they survive as regression
+cover.

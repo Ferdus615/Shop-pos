@@ -23,16 +23,26 @@ Add the things you sell, grouped into categories (for example "Beverages", "Snac
 Each item has a name, a price, a description, an optional photo, and a switch for
 whether it's currently available. You can change prices any time.
 
-### 2. Ring up sales
+### 2. Ring up an order
 
-Pick what the customer is buying and how many of each, choose how they paid — **cash,
-bKash or Nagad** — and the app:
+Pick what the customer is buying and how many of each, put in the **table number**
+(leave it empty for a counter or takeaway sale), and send the order.
 
-- adds everything up,
-- applies any discount you enter,
-- records the sale with a receipt number and a timestamp.
+Then choose when it is being paid — **Pay now** is already selected, because that is
+what nearly every sale is:
 
-You never do the maths. It always uses your current menu prices.
+- **Pay now** — take the money there and then. Put in the cash received and it works
+  out the change. It prints **the receipt and the kitchen ticket**.
+- **Pay later** — for the occasional table that will settle at the end. The bill stays
+  open and it prints **only the kitchen ticket**; the receipt comes out when they pay,
+  from Open bills.
+
+Either way the kitchen ticket goes out immediately with the table in big letters, and
+you never do the maths — it always uses your current menu prices.
+
+**If the table orders again before paying**, the new items join the same bill rather
+than starting a second one, so there is only ever one bill to settle per table. Once
+they have paid, the next round starts a fresh bill.
 
 ### 3. Print receipts
 
@@ -47,28 +57,90 @@ The app tells you which happened. One note: thermal printers can only print Lati
 letters and numbers, so Bengali item names come out as `?` — for now, give items Latin
 names on the menu.
 
-### 4. See your daily sales
+### 4. The Tables screen
+
+This is the screen for whoever is working the floor. It shows **only the food still to
+go out** — one card per table:
+
+- what is on each bill, and how long it has been waiting,
+- an amber warning once something has been waiting more than 15 minutes,
+- a **Done** button on every card, which takes it off this screen once the food has
+  gone out,
+- a **Paid** button as well when the bill has not been settled — the customer is
+  sitting right there, so you can take the money without walking to the till. A bill
+  that is already paid shows only Done.
+- a table with two rounds shows both bills together under one heading,
+- counter and takeaway orders are grouped under "Counter".
+
+Along the top it tells you how many tables are waiting, how many orders are still to
+serve, and how much of that is unpaid. It refreshes itself every few seconds, so two
+people can work from it at once and each sees what the other has marked. When
+everything has gone out, it simply says "Nothing waiting".
+
+If you mark something Done by mistake, the confirmation that appears has an **Undo** on
+it. And if a table eats and leaves the screen without paying, the bill is not lost —
+it is on Sales under **Unpaid**, with a Paid button of its own.
+
+Your staff have this screen too.
+
+### 5. Taking the money: Open bills at the till
+
+Billing happens at the till. The POS has an **Open bills** button showing how many
+bills are still unpaid; tap it and you get the list. Tap a bill to see what is on it,
+then either:
+
+- **Add items** — points the till at that table, so what you ring up next joins its
+  bill, or
+- **Take payment** — asks how they paid (cash, bKash or Nagad), works out the change
+  for cash, marks the bill paid, and prints the customer's receipt.
+
+That is the only place money is taken, so there is never a question of where to settle
+up. Each screen has one job: the till bills, the Tables screen serves, and Sales is the
+record of the day.
+
+### 6. See your daily sales
 
 Pick any day (it opens on today) and see:
 
-- how much money you took,
-- how many orders you had,
+It is the day's record, and the place to settle a bill that has already been served:
+each unpaid order carries a **Paid** button. There is nothing here for serving — that
+is the Tables screen's job.
+
+- **Collected** — money actually taken that day,
+- **Unpaid** — rung up but not settled yet, shown apart in amber so it is never
+  mistaken for takings,
+- how many paid orders and the average,
 - how customers paid,
-- your best-selling items,
+- your best-selling items — **All** shows the top five across the shop, or tap a
+  category to see everything that sold in it,
 - every order from that day, with the details of each.
 
-### 5. Refund an order
+Your sales figure only counts money you have actually received, which is why an unpaid
+table does not move it.
 
-If something has to be given back, refund the order from the sales list. Nothing is
-deleted — the record stays, and the money comes back out of the day's total, so your
-figures stay honest.
+### 7. Cancel a sale: void or refund
 
-### 6. Manage your staff
+Open any order from the sales list and you get two choices, because two different
+things can go wrong:
+
+- **Void** — the sale should never have been rung up: wrong buttons pressed, the
+  customer changed their mind before you handed anything over, or someone was testing
+  the till.
+- **Refund** — the sale did happen and you gave the money back.
+
+Both take the order out of that day's takings, and neither deletes anything: the order
+stays on record, marked "Voided" or "Refunded". Keeping them apart matters at
+month-end — "we mis-punched four orders" tells a very different story from "we refunded
+four customers".
+
+Each one asks you to confirm first, because neither can be undone.
+
+### 8. Manage your staff
 
 Add an account for each person who works the till, and switch it off when they leave.
 Their past sales stay on record.
 
-### 7. Track your expenses
+### 9. Track your expenses
 
 Record what you spend — rent, supplies, bills — sorted into your own categories.
 **Every new expense starts with its category**: the dialog asks for it first and will
@@ -79,7 +151,7 @@ The Expenses screen opens on this month and shows your total, how many entries t
 are, your biggest category, and what each category cost you. Pick another month from
 the month box to look back.
 
-### 8. Owner dashboard
+### 10. Owner dashboard
 
 The screen you land on when you sign in. It answers "how is the shop doing?" over
 three spans at once — **today, this month, and this year**:
@@ -88,7 +160,11 @@ three spans at once — **today, this month, and this year**:
 - tap one to see that span in full: sales, number of orders, average sale, what you
   spent, and your profit;
 - where the money went, by expense category, and how customers paid;
-- your best sellers for that span;
+- your best sellers for that span, with a button per category so you can leave a
+  category (drinks, say) out of the ranking — hiding it changes nothing about the
+  takings, only which items compete for the top spots, and the choice is remembered
+  on your device;
+- the full list of everything sold in that span and how many of each;
 - a **month-by-month chart** of the whole year — takings beside spending, so a bad
   month is visible at a glance. Hover a month for its exact figures, or press "View as
   table" if you would rather read the numbers.
@@ -102,9 +178,9 @@ Three kinds of login:
 
 - **Owner (you)** — everything: the till, the menu, sales figures, expenses, and staff
   accounts.
-- **Staff** — can ring up sales and see the menu, but **cannot** see your sales totals,
-  change prices, or touch expenses. Your business numbers stay private while your staff
-  serve customers.
+- **Staff** — work the till, the Tables screen and the Sales list (marking orders done
+  and paid), and can read the menu. They **cannot** change prices, see the dashboard, touch expenses, or
+  manage accounts — and they cannot void or refund an order, which stays your call.
 - **System administrator** — the person who set the platform up. They can create a new
   shop and switch one off, but they **cannot** see any shop's menu, sales or money. Not
   yours, not anyone's.

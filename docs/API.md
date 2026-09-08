@@ -6,7 +6,7 @@ A live, interactive version of this reference (OpenAPI/Swagger) is served by the
 running backend at **`/docs`**. This document is the narrative companion: it states the
 role each endpoint requires, the tenant rules, and the errors worth handling.
 
-Base URL: `http://localhost:3000` in development.
+Base URL: `http://localhost:5000` in development.
 
 ---
 
@@ -227,9 +227,14 @@ which carry their own name and price snapshot.
 | `POST` | `/orders` | OWNER, STAFF | Ring up a sale |
 | `GET` | `/orders` | OWNER, STAFF | List; filters `from`, `to`, `status` |
 | `GET` | `/orders/:id` | OWNER, STAFF | One order with its lines |
+| `GET` | `/orders/open` | OWNER, STAFF | Orders still to serve or settle (the floor view) |
 | `GET` | `/orders/summary` | OWNER | Daily sales summary |
 | `POST` | `/orders/:id/void` | OWNER | Void an order |
 | `POST` | `/orders/:id/refund` | OWNER | Refund an order |
+| `POST` | `/orders/:id/pay` | OWNER, STAFF | Settle the bill, confirming how they paid |
+| `POST` | `/orders/:id/unpay` | OWNER | Undo a payment marked in error |
+| `POST` | `/orders/:id/serve` | OWNER, STAFF | Mark the food served |
+| `POST` | `/orders/:id/unserve` | OWNER, STAFF | Take back a premature "served" |
 
 ### `POST /orders`
 
@@ -240,10 +245,23 @@ which carry their own name and price snapshot.
     { "menuItemId": "uuid", "quantity": 1 }
   ],
   "paymentMethod": "CASH",
+  "tableNumber": "7",
   "discount": 20,
   "tax": 0
 }
 ```
+
+`markPaid` defaults to **true**: the ordinary sale is paid as it is rung up. Send
+`false` for a table that settles later, which leaves the bill open. Paying now for a
+table that already has an unpaid bill settles that **whole** bill — a table has one
+bill, so there is nothing else it could mean.
+
+`tableNumber` is optional free text (max 16 chars); omit it for a counter or takeaway
+sale. **If that table already has an unpaid bill, these items are appended to it** and
+the response is that bill with `appendedToOpenBill: true` — its totals recomputed and
+its serving reopened. Once the table has paid, the next ring-up starts a new order.
+
+Orders are created **unserved** either way — the food has only just been ordered.
 
 The request carries **no prices**. The server prices the order inside a transaction
 from the shop's live menu, merges duplicate lines for the same item, snapshots each
@@ -279,9 +297,41 @@ Response:
 `400` when an item id does not exist in this shop, an item is unavailable, or the
 discount exceeds the subtotal.
 
+### `GET /orders/open`
+
+Every `COMPLETED` order that is **unpaid or unserved**, with its lines, oldest first.
+Not filtered by date — a bill opened before midnight is still open afterwards, so a
+day filter would hide a table that is still sitting there.
+
+The union serves two screens, each filtering it: **Tables** takes the *unserved* ones
+(its job is the food still to go out) and the POS's **Open bills** panel takes the
+*unpaid* ones (its job is money still to collect). An order that is served but unpaid
+appears in neither — it is settled from the Sales list.
+
+### Settling and serving — `POST /orders/:id/pay`, `/serve`
+
+```json
+{ "paymentMethod": "BKASH", "receivedAmount": 500 }
+```
+
+Both fields are optional on `pay`: the method defaults to the one recorded at ring-up,
+and `receivedAmount` is only used by the client for the change line on the receipt.
+Paying and serving are independent — an order can be served before it is settled, or
+settled before it is served — and both are staff work.
+
+| Attempt | Result |
+| ------- | ------ |
+| Pay an order already paid | `400` "Order is already paid" |
+| Pay a voided or refunded order | `400` "A voided order cannot be paid" |
+| Unpay an order that was never paid | `400` "Order is not marked paid" |
+| Serve an order already served | `400` "Order is already served" |
+
 ### `GET /orders/summary?date=YYYY-MM-DD`
 
-Defaults to today. Counts `COMPLETED` orders only.
+Defaults to today, and counts **paid** `COMPLETED` orders — takings mean money
+received. What has been rung up and not settled comes back separately as
+`unpaidOrderCount` and `unpaidTotal`, so the day's total does not climb and fall as
+tables settle.
 
 ```json
 {
@@ -293,21 +343,40 @@ Defaults to today. Counts `COMPLETED` orders only.
     { "paymentMethod": "BKASH", "orderCount": 12, "total": 6350 }
   ],
   "topItems": [
-    { "name": "Cappuccino", "quantitySold": 37, "revenue": 6660 }
-  ]
+    {
+      "name": "Cappuccino",
+      "categoryId": "7c1f…",
+      "categoryName": "Drinks",
+      "quantitySold": 37,
+      "revenue": 6660
+    }
+  ],
+  "itemsSold": [ "…" ]
 }
 ```
 
-`topItems` holds at most five entries, ranked by quantity sold.
+`itemsSold` is every item sold in the period — name, category, quantity and revenue
+— ranked by quantity sold. `topItems` is the first five of that same list, so the two
+can never disagree. Items sold under no category (or whose menu item has since been
+deleted) report `categoryId: null` and `categoryName: "Uncategorized"`.
+
+Category exclusion in the best-seller list is a reading preference and is applied by
+the client over `itemsSold`; it never changes the totals the API reports.
 
 ### `POST /orders/:id/void` and `POST /orders/:id/refund`
 
 Status transitions; nothing is deleted, and the order drops out of sales reporting
 because only `COMPLETED` orders are counted. Both return the updated order.
 
+The two are not interchangeable, and the status is the record of which happened:
+**void** means the order should never have been rung up (mis-punched, cancelled before
+handover), **refund** means the sale happened and the money went back. Neither is
+reversible, so the transitions are guarded symmetrically:
+
 | Attempt | Result |
 | ------- | ------ |
 | Void an order already `VOIDED` | `400` "Order is already voided" |
+| Void a `REFUNDED` order | `400` "Cannot void a refunded order — the money has already been returned" |
 | Refund an order already `REFUNDED` | `400` "Order is already refunded" |
 | Refund a `VOIDED` order | `400` "Cannot refund a voided order" |
 
@@ -414,7 +483,8 @@ Each `PeriodOverview` is the same shape whichever horizon it describes:
     "totalSales": 9000,
     "averageOrderValue": 300,
     "byPaymentMethod": [ "…" ],
-    "topItems": [ "…" ]
+    "topItems": [ "…" ],
+    "itemsSold": [ "…" ]
   },
   "expenses": {
     "expenseCount": 12,

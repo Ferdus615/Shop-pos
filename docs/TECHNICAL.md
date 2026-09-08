@@ -77,6 +77,7 @@ shop-pos/
 │   │   ├── login/page.tsx
 │   │   └── (app)/                    # authenticated shell
 │   │       ├── pos/                  # till
+│   │       ├── tables/               # open-tables floor view (owner + staff)
 │   │       ├── sales/                # daily sales (owner)
 │   │       ├── menu/                 # menu CRUD (owner)
 │   │       ├── dashboard/            # day/month/year overview + trend (owner)
@@ -159,9 +160,11 @@ Notable columns:
 - **MenuCategory** — `id`, `shopId`, `name`, `description`.
 - **MenuItem** — `id`, `shopId`, `name`, `description`, `price` (numeric),
   `isAvailable`, `imageUrl`, `categoryId` (FK, `ON DELETE SET NULL`).
-- **Order** — `id`, `shopId`, `orderNumber` (unique **per shop**), `subtotal`,
-  `discount`, `tax`, `total` (numeric), `paymentMethod`, `status`, `createdById`,
-  `items[]` (eager, cascading), timestamps.
+- **Order** — `id`, `shopId`, `orderNumber` (unique **per shop**), `tableNumber`
+  (nullable — `NULL` is a counter/takeaway sale), `subtotal`, `discount`, `tax`,
+  `total` (numeric), `paymentMethod`, `status`, `isPaid` + `paidAt`, `isServed` +
+  `servedAt`, `createdById`, `items[]` (eager, cascading), timestamps. Indexed on
+  `(shopId, tableNumber, isPaid)` for the open-bill lookup.
 - **OrderItem** — `id`, `orderId`, `menuItemId` (nullable), `nameSnapshot`,
   `unitPrice`, `quantity`, `lineTotal`.
 - **ExpenseCategory** — `id`, `shopId`, `name` (unique per shop).
@@ -243,12 +246,75 @@ Enums: `Role`; `PaymentMethod` (`CASH`, `BKASH`, `NAGAD`); `OrderStatus`
 The `(shop_id, order_number)` unique index guards the numbering against concurrent
 checkouts.
 
+### Dine-in: tables, paying and serving
+
+Ringing up does not take money. An order is created **unpaid and unserved**, and the
+two are tracked separately (`isPaid`/`isServed`) because they happen at different
+moments and in either order: food can go out before the bill is settled, and a bill
+can be settled before the last dish arrives.
+
+- **Takings mean money received.** Every sales aggregate — daily, monthly, yearly, the
+  dashboard trend — counts `status = COMPLETED AND is_paid = true`. What has been rung
+  up and not settled is reported separately as `unpaidOrderCount` / `unpaidTotal`, so
+  the day's total does not move as tables settle up.
+- **A table keeps one bill.** `POST /orders` with a `tableNumber` looks for that
+  table's unpaid, un-voided order and **appends** the new lines to it, recomputing the
+  totals and reopening serving; the response carries `appendedToOpenBill`. Once the
+  table has paid, the next round starts a fresh order — so "two rounds, two bills" is
+  true only when the first is already closed. Lines are appended rather than merged so
+  the kitchen sees each round on its own.
+- **The append uses `update`, never `save`.** `items` is an eager, cascading relation,
+  so the bill arrives with its lines as they were *before* the round; saving the entity
+  would cascade that stale array and detach the rows just inserted, leaving a bill that
+  charges the new total against the old lines. Same class of trap as the expense
+  category relation — see §7 there.
+- **Payment method is confirmed at payment**, not at ring-up: `POST /orders/:id/pay`
+  takes the method actually used, which for a table that settles later is the first
+  moment anyone knows it. `POST /orders/:id/unpay` corrects a mis-click and is
+  owner-only — it is not a refund, since no money moved.
+- **Serving toggles**: `POST /orders/:id/serve` and `/unserve`.
+- **Paying now is the default.** The till asks *when* the bill is paid, not
+  whether: "Pay now" (selected by default) creates the order already settled and
+  prints **both** slips, while "Pay later" leaves it unpaid and prints **only the
+  kitchen ticket** — the customer's receipt then comes from Open bills when they
+  settle. `POST /orders` carries `markPaid` (default `true`); paying now for a table
+  that already has an open bill settles that whole bill, since a table has only one.
+- **Serving and settling are separate queues, and each screen shows one of them.**
+  **Tables** is the serving queue: the orders whose food has not gone out. Marking one
+  Done takes it off that screen — a table needing nothing carried to it does not belong
+  in a floor view — and an unpaid bill there also offers **Paid**, because the customer
+  is sitting in front of you; a paid one offers only Done. **Sales** is the day's record
+  and the place a bill is settled once it has been served and left the floor: unpaid
+  rows carry a **Paid** button, and the owner can void, refund or reprint. The **POS**
+  bills too, through its Open bills panel, which lists what is unpaid whether or not it
+  has been served.
+- **One endpoint, two readings.** `GET /orders/open` returns everything unpaid **or**
+  unserved; Tables filters it to unserved and the POS panel to unpaid. The union is
+  deliberate — a single query answers both questions, and neither screen has to guess
+  what the other means.
+- **Undoing a Done** lives on the confirmation toast rather than a button, since the
+  card it would belong to has by then left the screen.
+- **The floor view reads `GET /orders/open`** — every `COMPLETED` order that is unpaid
+  or unserved, oldest first. Deliberately **not** filtered by date: a bill opened
+  before midnight is the same bill afterwards, and a view that dropped it at the day
+  boundary would hide a table still sitting there. The frontend groups it by table
+  (counter sales under "Counter") and polls every 15s, since the screen is read across
+  a room while other people mark things done on their own devices.
+- Paying and serving are **staff work**, so those endpoints and the sales page are open
+  to `STAFF`; void, refund and unpay stay `OWNER`.
+
 ### Void and refund — `POST /orders/:id/void`, `POST /orders/:id/refund`
 
-Owner-only status transitions on an existing order; neither deletes anything. An order
-cannot be voided twice, refunded twice, or refunded after being voided. Only
+Owner-only status transitions on an existing order; neither deletes anything. Only
 `COMPLETED` orders count towards sales reporting, so either action removes the order
 from the day's takings while leaving the record intact.
+
+The two carry different meanings — void is a mis-punch that should never have counted,
+refund is money handed back — and the status is the only record of which it was, so
+neither may overwrite the other: an order cannot be voided twice, refunded twice,
+refunded after being voided, or **voided after being refunded**. The UI offers both
+actions only on a `COMPLETED` order, each behind a confirmation, since neither is
+reversible. `orders.service.spec.ts` pins every transition.
 
 ### Daily sales summary — `GET /orders/summary?date=`
 
@@ -370,6 +436,10 @@ slip to a bitmap and sending it as a raster image (`GS v 0`) — a change in
   forbidden page never mounts or fires its requests. A `SUPER_ADMIN` is kept to
   `/admin/*`. Unlisted paths are allowed through so a genuine 404 still renders.
   This is a convenience — the API enforces the same rules independently.
+- **Role split.** Staff work the till, the sales page (settling and serving) and read
+  the menu; the dashboard, expenses and staff pages are the owner's. The menu page
+  hides its editing controls from staff because the API refuses their writes, and the
+  sales page hides void/refund from them for the same reason.
 - **One landing rule.** `homeFor(role)` in the same module decides where each role
   starts — `/dashboard` for an owner, `/pos` for staff, `/admin/*` for a platform
   admin — and login, the root route and the guard's redirect all call it, so the
@@ -380,6 +450,11 @@ slip to a bitmap and sending it as a raster image (`GS v 0`) — a change in
   invalidating the keys they affect. Components hold no fetching logic.
 - **Money formatting** is centralised in `src/lib/format.ts` (fixed two decimals, no
   currency symbol — currency configuration is still outstanding).
+- **Best sellers filter by one category at a time.** "All" is the top five across
+  everything; picking a category lists **all** of its items instead of cutting at
+  five, because a quiet item in a small category is invisible in a global top five.
+  The choice is per-visit state, not persisted — a remembered filter on a figure card
+  reads as missing data.
 - **The one chart is hand-rolled SVG** (`dashboard/monthly-trend-chart.tsx`) rather
   than a charting dependency: grouped columns on a single axis, since both series are
   money. Its two series colours live in `globals.css` as `--viz-*` tokens, stepped

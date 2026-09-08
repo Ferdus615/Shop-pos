@@ -1,0 +1,5 @@
+# Shop data exports (backend/scripts/export-shop.js).
+# These hold real trading data for a real shop — never commit them.
+backups/
+
+node_modules/

@@ -95,8 +95,11 @@ function buildPeriod(
   sales: {
     orderCount: number;
     totalSales: number;
+    unpaidOrderCount: number;
+    unpaidTotal: number;
     byPaymentMethod: PeriodOverview['sales']['byPaymentMethod'];
     topItems: PeriodOverview['sales']['topItems'];
+    itemsSold: PeriodOverview['sales']['itemsSold'];
   },
   expenses: {
     expenseCount: number;
@@ -109,11 +112,14 @@ function buildPeriod(
     sales: {
       orderCount: sales.orderCount,
       totalSales: sales.totalSales,
+      unpaidOrderCount: sales.unpaidOrderCount,
+      unpaidTotal: sales.unpaidTotal,
       // Average basket, which every period view would otherwise recompute.
       averageOrderValue:
         sales.orderCount > 0 ? round2(sales.totalSales / sales.orderCount) : 0,
       byPaymentMethod: sales.byPaymentMethod,
       topItems: sales.topItems,
+      itemsSold: sales.itemsSold,
     },
     expenses: {
       expenseCount: expenses.expenseCount,

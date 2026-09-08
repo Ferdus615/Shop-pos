@@ -6,6 +6,25 @@ import { Role } from './common/enums/role.enum';
 import { Shop } from './shops/entities/shop.entity';
 import { UsersService } from './users/users.service';
 
+/** Passwords this project has published, and so can never protect anything. */
+const KNOWN_DEFAULTS = ['admin123', 'owner123', 'staff123', 'password'];
+
+/**
+ * A password good enough to put on the public internet.
+ *
+ * The old fallbacks (`admin123`, `owner123`) were in the repository, the
+ * README and the docs, which made every deployment that skipped the
+ * environment variables openly accessible — as a platform administrator, in
+ * the admin's case. Refusing to create the account is noisy and inconvenient;
+ * creating it with a published password is worse.
+ */
+function usablePassword(value: string | undefined): string | null {
+  if (!value) return null;
+  if (KNOWN_DEFAULTS.includes(value)) return null;
+  if (value.length < 10) return null;
+  return value;
+}
+
 /**
  * Bootstraps the two accounts nobody else can create:
  *
@@ -24,14 +43,23 @@ export async function runSeeder(app: INestApplicationContext) {
   if (await usersService.findByEmailWithPassword(adminEmail)) {
     console.log(`Platform admin "${adminEmail}" already exists.`);
   } else {
-    await usersService.createRaw({
-      name: process.env.SUPER_ADMIN_NAME ?? 'Platform Admin',
-      email: adminEmail,
-      password: process.env.SUPER_ADMIN_PASSWORD ?? 'admin123',
-      role: Role.SUPER_ADMIN,
-      shopId: null,
-    });
-    console.log(`Created platform admin: ${adminEmail}`);
+    const adminPassword = usablePassword(process.env.SUPER_ADMIN_PASSWORD);
+    if (!adminPassword) {
+      console.warn(
+        `Skipped creating the platform admin "${adminEmail}": set ` +
+          'SUPER_ADMIN_PASSWORD to something of your own, at least 10 ' +
+          "characters and not one of this project's published defaults.",
+      );
+    } else {
+      await usersService.createRaw({
+        name: process.env.SUPER_ADMIN_NAME ?? 'Platform Admin',
+        email: adminEmail,
+        password: adminPassword,
+        role: Role.SUPER_ADMIN,
+        shopId: null,
+      });
+      console.log(`Created platform admin: ${adminEmail}`);
+    }
   }
 
   // --- Demo shop + its owner --------------------------------------------
@@ -56,10 +84,20 @@ export async function runSeeder(app: INestApplicationContext) {
     return;
   }
 
+  const ownerPassword = usablePassword(process.env.OWNER_PASSWORD);
+  if (!ownerPassword) {
+    console.warn(
+      `Skipped creating the owner "${ownerEmail}": set OWNER_PASSWORD to ` +
+        'something of your own, at least 10 characters and not one of this ' +
+        "project's published defaults.",
+    );
+    return;
+  }
+
   await usersService.createRaw({
     name: process.env.OWNER_NAME ?? 'Shop Owner',
     email: ownerEmail,
-    password: process.env.OWNER_PASSWORD ?? 'owner123',
+    password: ownerPassword,
     role: Role.OWNER,
     shopId: shop.id,
   });
