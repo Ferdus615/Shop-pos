@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { resolveCorsOrigins } from './config/cors-origins';
 import { runSeeder } from './seed';
 
 async function bootstrap() {
@@ -18,23 +19,28 @@ async function bootstrap() {
   }
 
   /**
-   * Only the shop's own front ends may call this API.
-   *
-   * `origin: true` reflected whatever origin asked, which let any website on
-   * the internet make browser requests against a deployment. The allowlist
-   * comes from CORS_ORIGINS (comma-separated); with nothing set it stays on
-   * localhost, so a deployment that forgets the variable fails visibly in the
-   * browser instead of being quietly open to everyone.
+   * Only the shop's own front ends may call this API. The allowlist comes from
+   * CORS_ORIGINS — see src/config/cors-origins.ts for the rules, including the
+   * wildcard that covers preview deployments.
    */
-  const allowedOrigins = (process.env.CORS_ORIGINS ?? '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-  const origins = allowedOrigins.length
-    ? allowedOrigins
-    : ['http://localhost:5001', 'http://localhost:3001'];
-  app.enableCors({ origin: origins, credentials: true });
-  console.log(`CORS allows: ${origins.join(', ')}`);
+  const cors = resolveCorsOrigins();
+  app.enableCors({
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void,
+    ) => {
+      // No Origin header at all: a server-to-server caller such as the print
+      // bridge, or curl. CORS is a browser mechanism and has nothing to say
+      // about these, so they pass through untouched.
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      callback(null, cors.isAllowed(origin));
+    },
+    credentials: true,
+  });
+  console.log(`CORS allows: ${cors.configured.join(', ')}`);
 
   app.useGlobalPipes(
     new ValidationPipe({
