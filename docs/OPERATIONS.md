@@ -36,7 +36,7 @@ dialog. Everything else is required.
 | `DATABASE_URL` | — | Postgres connection string (preferred). SSL is enabled automatically for Neon or when the URL carries `sslmode=require` |
 | `DB_HOST` / `DB_PORT` / `DB_USERNAME` / `DB_PASSWORD` / `DB_DATABASE` | `localhost` / `5432` / `postgres` / `postgres` / `shop_pos` | Fallback connection settings, used only when `DATABASE_URL` is unset |
 | `DB_SSL` | — | `true` forces SSL when using the individual variables |
-| `CORS_ORIGINS` | unset (localhost) | **Set this in production.** Comma-separated origins allowed to call the API. Unset falls back to `localhost:5001` / `localhost:3001`, so a deployed frontend is CORS-blocked |
+| `CORS_ORIGINS` | unset | **Required in production** — the app refuses to boot without it. Comma-separated origins allowed to call the API. Outside production, unset falls back to `localhost:5001` / `localhost:3001`. One hostname label may be a `*` wildcard, for preview deployments |
 | `JWT_SECRET` | — | **Set this.** Token signing key; a long random string |
 | `JWT_EXPIRES_IN` | `1d` | Token lifetime |
 | `SUPER_ADMIN_NAME` / `_EMAIL` / `_PASSWORD` | `Platform Admin` / `admin@shop-pos.local` / `admin123` | Platform administrator seeded on startup |
@@ -284,13 +284,54 @@ Checklist before going live:
       `completed_but_unpaid` count
 - [ ] `JWT_SECRET` set to a long random value, unique per environment
 - [ ] `DATABASE_URL` pointing at the managed database, with SSL
-- [ ] `CORS_ORIGINS` set to the frontend's origin — unset falls back to localhost, so
-      the deployed frontend will be CORS-blocked
+- [ ] `CORS_ORIGINS` set to the frontend's origin — the app will not start without it
+      when `NODE_ENV=production`
 - [ ] `SUPER_ADMIN_PASSWORD` and `OWNER_PASSWORD` set to your own values, at least 10
       characters and not a published default — the seeder now skips those accounts
       rather than creating them with a known password
 - [ ] `APP_TIMEZONE` matches the shops' business timezone
 - [ ] TLS terminated in front of the API — tokens travel in the `Authorization` header
+
+### CORS: which origin goes where
+
+The two settings cross over, which is the usual reason a deployment looks healthy but
+every browser call fails:
+
+| Variable | Set it on | Value is |
+| -------- | --------- | -------- |
+| `CORS_ORIGINS` | the backend host | the **frontend's** public URL |
+| `NEXT_PUBLIC_API_URL` | the frontend host | the **backend's** public URL |
+
+Neither contains a port. A platform that terminates TLS in front of the app (Render,
+Vercel, any reverse proxy) serves the browser on 443, so the container's internal port
+never appears in an origin and CORS never compares it.
+
+`CORS_ORIGINS` is matched exactly, so `https://` is required, a trailing slash is
+tolerated in the configuration but nothing else is, and the value has to be the origin
+as the browser's address bar shows it.
+
+**Preview deployments.** Vercel gives every preview its own hostname and changes it on
+each deploy, so no fixed list can cover them. One hostname label may be a `*`:
+
+```
+CORS_ORIGINS=https://shop.example.com,https://shop-pos-*.vercel.app
+```
+
+The wildcard stops at a dot, deliberately. `https://shop-pos-*.vercel.app` accepts this
+project's previews but not `https://someone-elses-app.vercel.app`, and not a hostname
+that merely ends in the pattern. Keep a prefix specific to your project in it — a bare
+`https://*.vercel.app` would admit every site on the platform.
+
+**A missing variable stops the process.** With `NODE_ENV=production` and no
+`CORS_ORIGINS`, boot fails with a message naming the variable and showing the format,
+rather than starting up and rejecting every browser. The effective list is logged on
+every boot:
+
+```
+CORS allows: https://shop.example.com, https://shop-pos-*.vercel.app
+```
+
+That line is the fastest way to tell whether the variable reached the process.
 
 ### Frontend
 
