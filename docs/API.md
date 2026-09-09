@@ -1,6 +1,6 @@
 # Shop POS — API Reference
 
-_Audience: anyone writing a client against the backend. Last updated: 2026-09-06._
+_Audience: anyone writing a client against the backend. Last updated: 2026-09-09._
 
 A live, interactive version of this reference (OpenAPI/Swagger) is served by the
 running backend at **`/docs`**. This document is the narrative companion: it states the
@@ -386,6 +386,12 @@ reversible, so the transitions are guarded symmetrically:
 
 All routes require **`OWNER`**.
 
+Spending is recorded against a **catalogued item**, not a typed title. The shape
+is category → item → entries: add "Chicken" under "Groceries" once, then record
+what it cost each time it is bought. Entries are dated, so a day reads as what
+was actually bought that day — 1 kg of chicken today; bread, 7up and biscuits
+tomorrow.
+
 ### Expense categories
 
 | Method | Path | Description |
@@ -393,52 +399,136 @@ All routes require **`OWNER`**.
 | `POST` | `/expenses/categories` | Create — `{ name }`, unique within the shop |
 | `GET` | `/expenses/categories` | List |
 | `PATCH` | `/expenses/categories/:id` | Rename |
-| `DELETE` | `/expenses/categories/:id` | Delete — expenses are kept, uncategorized |
+| `DELETE` | `/expenses/categories/:id` | Delete — **`409`** while it still holds items |
 
-### Expenses
+> A category holding items cannot be deleted: doing so would cascade the item
+> list away, and with it the only place the shop's buying history is organised.
+> Move or delete the items first. Past expenses of a deleted category survive as
+> uncategorized.
+
+### Expense items (the catalogue)
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `POST` | `/expenses/items` | Create |
+| `GET` | `/expenses/items` | List; filters `categoryId`, `includeInactive` |
+| `GET` | `/expenses/items/:id` | One item |
+| `PATCH` | `/expenses/items/:id` | Update (partial) |
+| `DELETE` | `/expenses/items/:id` | Delete if never bought, otherwise retire |
+
+```json
+{
+  "name": "Chicken",
+  "categoryId": "uuid",
+  "unit": "kg",
+  "defaultUnitPrice": 320
+}
+```
+
+`unit` defaults to `"pcs"`. `defaultUnitPrice` is optional and only pre-fills an
+entry — leave it `null` when the price varies every time. A name has to be unique
+within its category (`409` otherwise); `categoryId` is required, since the
+category is how the item list is browsed.
+
+> `DELETE` returns `200` with `{ "deleted": boolean, "item"?: ExpenseItem }`
+> rather than `204`. An item with purchases behind it is **retired**
+> (`isActive: false` — hidden from the pick lists, history untouched) instead of
+> deleted, and the caller has to be able to tell the two apart. Retired items are
+> excluded from `GET /expenses/items` unless `includeInactive=true`.
+
+### Expenses (the entries)
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
 | `GET` | `/expenses/summary` | Monthly summary; `month=YYYY-MM`, defaults to the current month |
-| `POST` | `/expenses` | Create |
-| `GET` | `/expenses` | List; filters `month`, `categoryId` |
+| `GET` | `/expenses/days` | Days of a month that have spending; `month=YYYY-MM` |
+| `POST` | `/expenses/bulk` | Record a whole basket against one date |
+| `POST` | `/expenses` | Record one purchase |
+| `GET` | `/expenses` | List; filters `date`, `month`, `categoryId`, `itemId` |
 | `GET` | `/expenses/:id` | One expense |
 | `PATCH` | `/expenses/:id` | Update (partial) |
 | `DELETE` | `/expenses/:id` | Delete |
 
 ```json
 {
-  "title": "Milk supply",
-  "amount": 1250,
-  "expenseDate": "2026-08-31",
-  "categoryId": "uuid",
-  "note": "Weekly delivery"
+  "itemId": "uuid",
+  "quantity": 1.5,
+  "unitPrice": 320,
+  "expenseDate": "2026-09-09",
+  "note": "Bought from the morning market"
 }
 ```
 
-`expenseDate` defaults to today; `categoryId` and `note` are optional, and either
-can be set to `null` to clear it.
+`expenseDate` defaults to today. `amount` may be **omitted** when `quantity` and
+`unitPrice` are both known — the server stores `quantity × unitPrice`; sending
+`amount` wins, so an odd price paid on the day is recorded exactly. `unitPrice`
+and `unit` default to the item's. An `itemId` from another shop is a `400`, and
+so is an entry with no amount and nothing to multiply.
 
-> The API keeps `categoryId` optional — expenses recorded before categories existed
-> are still valid, and clearing one is a legitimate edit. It is the **UI** that
-> requires a category when recording a new expense, so nothing new lands unfiled.
+The stored row carries `title`, `categoryId`, `unit` and `unitPrice` **copied
+from the item** at the time it was recorded. That is deliberate: renaming,
+re-filing or retiring an item never rewrites what the books say was bought.
 
-> On `PATCH`, only the fields you send are touched, and the response carries the
-> expense's current category. A category id belonging to another shop is a `400`.
+> `title` stays `NOT NULL` and `itemId` is nullable, because entries recorded
+> before the item catalogue existed are still valid — they have a typed title and
+> no item. Editing one leaves it item-less unless an item is chosen. Everything
+> recorded from now on has both.
+
+> On `PATCH`, only the fields you send are touched. Changing `itemId` re-derives
+> the title, category, unit and price from the new item; changing `quantity` or
+> `unitPrice` without an `amount` recomputes the total.
+
+### `POST /expenses/bulk`
+
+A day's shopping, saved as one unit — the basket built up item by item on screen,
+then committed together. Applied in a transaction, so a day can never land
+half-recorded; the items are all resolved before anything is written, so one bad
+id fails the whole request. Up to 200 lines. Responds with the created entries.
+
+```json
+{
+  "expenseDate": "2026-09-10",
+  "entries": [
+    { "itemId": "uuid", "quantity": 4, "unitPrice": 55 },
+    { "itemId": "uuid", "quantity": 6, "unitPrice": 35 },
+    { "itemId": "uuid", "quantity": 3, "amount": 120 }
+  ]
+}
+```
+
+### `GET /expenses/days?month=YYYY-MM`
+
+Newest first. Only days with spending on them — for the day picker, where a run
+of empty days is noise rather than information.
+
+```json
+[
+  { "date": "2026-09-10", "entryCount": 3, "total": 560 },
+  { "date": "2026-09-09", "entryCount": 1, "total": 320 }
+]
+```
 
 ### `GET /expenses/summary?month=YYYY-MM`
 
 ```json
 {
-  "month": "2026-08",
+  "month": "2026-09",
   "expenseCount": 23,
   "totalExpenses": 41500,
   "byCategory": [
-    { "categoryId": "uuid", "categoryName": "Supplies", "expenseCount": 12, "total": 21000 },
+    { "categoryId": "uuid", "categoryName": "Groceries", "expenseCount": 12, "total": 21000 },
     { "categoryId": null, "categoryName": "Uncategorized", "expenseCount": 2, "total": 1500 }
+  ],
+  "byItem": [
+    { "itemId": "uuid", "itemName": "Chicken", "entryCount": 8, "totalQuantity": 12.5, "unit": "kg", "total": 4000 },
+    { "itemId": null, "itemName": "September shop rent", "entryCount": 1, "totalQuantity": 0, "unit": null, "total": 18000 }
   ]
 }
 ```
+
+`byItem` groups on the stored `title`, so retired items and pre-catalogue entries
+still appear. `totalQuantity` only means something when `unit` is the same
+throughout the period.
 
 ---
 

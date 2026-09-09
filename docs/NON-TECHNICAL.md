@@ -1,7 +1,7 @@
 # Shop POS — Plain-Language Guide
 
 _Audience: shop owners and anyone who doesn't need the technical detail._
-_Last updated: 2026-09-06._
+_Last updated: 2026-09-09._
 
 ## What is this?
 
@@ -142,14 +142,31 @@ Their past sales stay on record.
 
 ### 9. Track your expenses
 
-Record what you spend — rent, supplies, bills — sorted into your own categories.
-**Every new expense starts with its category**: the dialog asks for it first and will
-not save without one, so nothing ends up in a nameless pile. If the category you need
-does not exist yet, add it right there in the same dialog — you never have to leave
-and come back. Anything you recorded before this rule keeps whatever it had.
-The Expenses screen opens on this month and shows your total, how many entries there
-are, your biggest category, and what each category cost you. Pick another month from
-the month box to look back.
+You keep a list of the things you buy, and then record what they cost — day by day.
+
+**First, build your list.** Make your own categories (Bazar, Rent, Utilities), and
+under each one add the items you actually buy: Chicken, Rice, Bread, 7up. For each
+item you say how it is measured — per kg, per litre, per piece — and, if the price is
+usually the same, what it costs per unit. That price is only a starting point; you can
+always change what you really paid on the day.
+
+**Then record the day's spending.** Tap **Record spending**, pick a category, and tap
+the items you bought. Each one drops into a basket where you set the quantity — 1 kg
+of chicken, 6 bottles of 7up — and the total works itself out. Add as many items as
+you like from as many categories as you like, then save the whole basket in one go
+against one date. If today you only bought a kilo of chicken, that is the whole of
+today. If tomorrow you buy 7up, biscuits and bread, that is the whole of tomorrow.
+
+**Reading it back.** The Expenses screen opens on today: what that day cost, item by
+item, grouped by category, with the day's total at the bottom. Underneath, every day
+of the month that had spending is listed with its total — tap one to jump to it, or
+pick any date from the date box. At the bottom you get the month totalled per item, so
+you can see what you keep spending on rather than just which category swallowed it.
+
+**Fixing things.** Any entry can be edited or deleted — the quantity, the price, the
+day, even which item it was. Nothing else in the day changes when you do. And if you
+stop buying something, deleting the item does not erase what you already spent on it:
+it just disappears from the pick lists, and your old records stay exactly as they were.
 
 ### 10. Owner dashboard
 

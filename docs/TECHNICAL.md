@@ -1,6 +1,6 @@
 # Shop POS — Technical Documentation
 
-_Audience: developers working on the codebase. Last updated: 2026-09-06._
+_Audience: developers working on the codebase. Last updated: 2026-09-09._
 
 Companion documents: [API.md](API.md) (endpoint reference),
 [OPERATIONS.md](OPERATIONS.md) (configuration and deployment),
@@ -70,7 +70,7 @@ shop-pos/
 │       ├── menu/                     # MenuCategory + MenuItem
 │       ├── orders/                   # Order + OrderItem, void/refund, sales summary
 │       ├── printing/                 # PrintJob + PrintStation queue
-│       ├── expenses/                 # Expense + ExpenseCategory, monthly summary
+│       ├── expenses/                 # Expense + ExpenseItem + ExpenseCategory
 │       └── dashboard/                # composed owner snapshot
 ├── frontend/src/
 │   ├── app/
@@ -81,7 +81,7 @@ shop-pos/
 │   │       ├── sales/                # daily sales (owner)
 │   │       ├── menu/                 # menu CRUD (owner)
 │   │       ├── dashboard/            # day/month/year overview + trend (owner)
-│   │       ├── expenses/             # expenses + categories (owner)
+│   │       ├── expenses/             # day view, item catalogue, basket (owner)
 │   │       ├── staff/                # shop users (owner)
 │   │       └── admin/shops/          # tenants (platform admin)
 │   ├── components/                   # app-shell, providers, theme-toggle, ui/
@@ -143,7 +143,7 @@ with no shop picker on the login screen.
 Shop 1───* User            (SUPER_ADMIN has shop_id = NULL)
 Shop 1───* MenuCategory 1───* MenuItem
 Shop 1───* Order 1───* OrderItem *───0..1 MenuItem
-Shop 1───* ExpenseCategory 1───* Expense
+Shop 1───* ExpenseCategory 1───* ExpenseItem 1───* Expense
 Shop 1───* PrintJob
 Shop 1───1 PrintStation
 Order   *───0..1 User (createdBy)
@@ -168,8 +168,17 @@ Notable columns:
 - **OrderItem** — `id`, `orderId`, `menuItemId` (nullable), `nameSnapshot`,
   `unitPrice`, `quantity`, `lineTotal`.
 - **ExpenseCategory** — `id`, `shopId`, `name` (unique per shop).
-- **Expense** — `id`, `shopId`, `title`, `amount` (numeric), `expenseDate` (date),
-  `note`, `categoryId`, `createdById`, timestamps.
+- **ExpenseItem** — `id`, `shopId`, `categoryId` (FK, **not null**, `ON DELETE
+  CASCADE`), `name` (unique per `(shopId, categoryId)`), `unit` (default `'pcs'`),
+  `defaultUnitPrice` (numeric, nullable), `isActive`, timestamps. The shop's own
+  catalogue of what it buys; `categoryId` is required because the category is how
+  the list is browsed.
+- **Expense** — `id`, `shopId`, `title`, `amount` (numeric), `quantity`
+  (numeric(12,3), nullable), `unit` (nullable), `unitPrice` (numeric, nullable),
+  `expenseDate` (date), `note`, `itemId` (FK, nullable, `ON DELETE SET NULL`),
+  `categoryId`, `createdById`, timestamps. `title`, `categoryId`, `unit` and
+  `unitPrice` are **copied from the item** when the entry is recorded, not read
+  back through the relation.
 - **PrintJob** — `id`, `shopId`, `type`, `payload` (jsonb), `status`, `attempts`,
   `error`, `claimedAt`, timestamps. Indexed on `(shopId, status)` and `createdAt`.
 - **PrintStation** — `id`, `shopId` (unique — one station per shop), `name`,
@@ -322,27 +331,58 @@ Aggregates `COMPLETED` orders within the business-timezone calendar day (default
 today): order count, total sales, breakdown by payment method, and the top five items
 by quantity sold.
 
-### Recording an expense — the category comes first
+### Recording an expense — category, then item, then the day
 
-`POST /expenses` accepts an expense with no category, but the dialog does not: the
-category is the first field, is required, and can be created inline (the new category
-is held in local state as well as invalidated in the cache, so the just-selected id
-always has a matching option even before the refetch lands). Expenses recorded before
-this rule keep their unfiled state when edited, and stay reachable as "Uncategorized"
-in every breakdown — the rule governs new entries, not history.
+Spending is entered against a **catalogued item**, never a typed title: category →
+item → dated entries. "Chicken" is added under "Groceries" once; what it cost is
+recorded each time it is bought. That is the only way per-item history exists at
+all — a free-text title cannot be totalled or trended.
+
+Three consequences shape the code:
+
+**Entries snapshot the item.** `title`, `categoryId`, `unit` and `unitPrice` are
+copied onto the row from the item at the moment of recording (`buildEntryFields`).
+Renaming, re-filing or retiring an item therefore cannot rewrite what the books say
+was bought. Every list, breakdown and export reads the stored `title`.
+
+**Items are retired, not deleted.** `DELETE /expenses/items/:id` removes an item
+only if it was never bought; otherwise it sets `isActive: false` and returns
+`{ deleted: false }`. Deleting a category holding items is refused outright (`409`)
+— the FK cascades, and taking the whole catalogue out from under the history is not
+something to do by accident.
+
+**A day is saved as a unit.** `POST /expenses/bulk` commits the basket in a
+transaction, with every item resolved before anything is written, so a day cannot
+land half-recorded. The UI builds the basket in local state and writes nothing until
+Save.
+
+`title` stays `NOT NULL` and `itemId` is nullable because entries recorded before
+the catalogue existed are still valid — they have a typed title and no item, stay
+reachable as "Uncategorized" in the breakdowns, and are left item-less when edited
+unless an item is chosen. The rule governs new entries, not history.
 
 `ExpensesService.update` deliberately loads the expense **without** its `category`
-relation. TypeORM's `save()` lets a loaded relation take precedence over the FK
-column, and the two disagreeing is silent data loss — first writing the old category
-back over a new one, then (when the relation was nulled to force the column through)
-wiping the category of any expense saved with its category unchanged. With no relation
-loaded, `categoryId` is the single source of truth, and the handler re-reads the row so
-the client still gets the category name. `expenses.service.spec.ts` pins all of it.
+or `item` relation. TypeORM's `save()` lets a loaded relation take precedence over
+the FK column, and the two disagreeing is silent data loss — first writing the old
+category back over a new one, then (when the relation was nulled to force the column
+through) wiping the category of any expense saved with its category unchanged. With
+no relation loaded, the FK columns are the single source of truth, and the handler
+re-reads the row so the client still gets the names. `expenses.service.spec.ts` pins
+all of it, plus the amount rules: `quantity × unitPrice` when no amount is sent, an
+explicit amount always winning, and a recompute when the quantity moves.
+
+### The day-by-day view — `GET /expenses/days?month=`
+
+The expense screen is read a day at a time, so `/expenses?date=` returns one day's
+entries and `/expenses/days` returns the days of a month that have spending, newest
+first. Empty days are omitted deliberately: a run of them is noise, and the point of
+the list is to get back to a day that has something on it.
 
 ### Monthly expense summary — `GET /expenses/summary?month=`
 
 Aggregates expenses within the business-timezone month (defaults to the current one):
-total plus a per-category breakdown, with uncategorized rows grouped as
+total plus a per-category **and per-item** breakdown (`byItem` groups on the stored
+`title`, so retired items and pre-catalogue entries still appear), with uncategorized rows grouped as
 "Uncategorized".
 
 ### Dashboard — `GET /dashboard?date=`
