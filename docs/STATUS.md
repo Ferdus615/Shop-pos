@@ -1,6 +1,6 @@
 # Shop POS — Project Status
 
-_What's built, what's verified, and what's left. Last updated: 2026-09-06._
+_What's built, what's verified, and what's left. Last updated: 2026-09-09._
 
 This complements the other docs:
 - [PLANNING.md](PLANNING.md) — the plan and the "why" behind each feature
@@ -34,7 +34,7 @@ This complements the other docs:
 | Refund an order | ✅ Done | ✅ Done |
 | Void an order | ✅ Done | ✅ Done |
 | Bluetooth receipt printing (print bridge) | ✅ Done | ✅ Done |
-| Expense tracking (monthly) | ✅ Done | ✅ Done |
+| Expense tracking (item catalogue, day by day) | ✅ Done | ✅ Done |
 | Owner dashboard (day / month / year + trend) | ✅ Done | ✅ Done |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started
@@ -67,8 +67,11 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started
   orders only, with what is still owed reported separately.
 - **Sales tracking** — daily summary: total, order count, payment-method breakdown, top
   five items.
-- **Expenses** — categories and expenses CRUD, monthly summary with per-category
-  breakdown.
+- **Expenses** — category → item → dated entries. The shop catalogues what it buys
+  (name, unit, optional price per unit), then records a day's shopping as a basket
+  saved in one transaction. Read a day at a time, with the month's days listed
+  alongside, and summarised per category and per item. Items are retired rather than
+  deleted once bought, so history stays intact.
 - **Dashboard** — one call returning the reference day, its month and its year, each
   with sales, expenses and net profit, plus a twelve-month trend of sales, spend and
   net. Year ranges are timezone-correct (a sale at 00:30 Dhaka on 1 January belongs to

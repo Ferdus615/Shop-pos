@@ -17,6 +17,8 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { CreateExpenseDto } from './dto/create-expense.dto';
+import { CreateExpensesBulkDto } from './dto/create-expenses-bulk.dto';
+import { ExpenseDaysQueryDto } from './dto/expense-days-query.dto';
 import { ExpenseSummaryQueryDto } from './dto/expense-summary-query.dto';
 import { QueryExpensesDto } from './dto/query-expenses.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
@@ -39,7 +41,26 @@ export class ExpensesController {
     return this.expensesService.getMonthlySummary(shopId, query.month);
   }
 
+  @Get('days')
+  @ApiOperation({
+    summary: "A month's days that have spending, newest first",
+  })
+  getDays(@Query() query: ExpenseDaysQueryDto, @CurrentShop() shopId: string) {
+    return this.expensesService.getDays(shopId, query.month);
+  }
+
+  @Post('bulk')
+  @ApiOperation({ summary: "Save a day's basket of items in one go" })
+  createMany(
+    @Body() dto: CreateExpensesBulkDto,
+    @CurrentUser('id') userId: string,
+    @CurrentShop() shopId: string,
+  ) {
+    return this.expensesService.createMany(dto, userId, shopId);
+  }
+
   @Post()
+  @ApiOperation({ summary: 'Record one purchase of a catalogued item' })
   create(
     @Body() dto: CreateExpenseDto,
     @CurrentUser('id') userId: string,
@@ -49,7 +70,10 @@ export class ExpensesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List expenses (defaults to the current month)' })
+  @ApiOperation({
+    summary:
+      'List expenses for a day (`date`) or a month (defaults to this month)',
+  })
   findAll(@Query() query: QueryExpensesDto, @CurrentShop() shopId: string) {
     return this.expensesService.findAll(query, shopId);
   }

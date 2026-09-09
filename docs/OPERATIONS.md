@@ -211,6 +211,19 @@ matter whether the target got its schema from synchronize, from a half-finished 
 or from `InitialSchema` a moment earlier. It also carries the paid/served backfill
 (§3b).
 
+### The item catalogue: `ExpenseItemCatalogue`
+
+Adds `expense_items` and four columns to `expenses` (`item_id`, `quantity`, `unit`,
+`unit_price`), turning expenses from typed one-off titles into purchases of
+catalogued items.
+
+Purely additive, and safe to run twice — every statement is `IF NOT EXISTS` or a
+guarded `DO` block. **Nothing already recorded is rewritten**: `expenses.title` stays
+`NOT NULL` and keeps holding the name, and the new columns are all nullable, which is
+exactly what an entry predating the catalogue looks like. It has a working `down()`,
+which drops the columns and the table — that discards the catalogue, so only revert it
+if nothing has been recorded against an item yet.
+
 To confirm where a database stands, before or after:
 
 ```bash

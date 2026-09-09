@@ -75,14 +75,72 @@ const EXPENSE_CATEGORIES = [
   'Miscellaneous',
 ];
 
+/**
+ * The item catalogue: spending is recorded by picking one of these, so the
+ * demo has to have them before it has any expenses. `unit` and `price` are
+ * what an entry pre-fills from.
+ */
+const EXPENSE_ITEMS: {
+  category: string;
+  name: string;
+  unit: string;
+  price: number | null;
+}[] = [
+  { category: 'Rent', name: 'Shop rent', unit: 'month', price: 18000 },
+  { category: 'Staff Cost', name: 'Staff salary', unit: 'month', price: 24000 },
+  {
+    category: 'Utilities',
+    name: 'Electricity bill',
+    unit: 'month',
+    price: null,
+  },
+  { category: 'Utilities', name: 'Gas bill', unit: 'month', price: 1100 },
+  { category: 'Bazar Cost', name: 'Chicken', unit: 'kg', price: 320 },
+  { category: 'Bazar Cost', name: 'Rice', unit: 'kg', price: 78 },
+  { category: 'Bazar Cost', name: 'Soybean oil', unit: 'ltr', price: 175 },
+  { category: 'Bazar Cost', name: 'Vegetables', unit: 'kg', price: 60 },
+  { category: 'Bazar Cost', name: 'Bread', unit: 'pcs', price: 55 },
+  { category: 'Bazar Cost', name: '7up', unit: 'pcs', price: 35 },
+  { category: 'Bazar Cost', name: 'Biscuit', unit: 'pack', price: 40 },
+  {
+    category: 'Miscellaneous',
+    name: 'Equipment repair',
+    unit: 'job',
+    price: null,
+  },
+];
+
 /** A shop keeps roughly the same fixed costs every month. */
-const MONTHLY_EXPENSES: { category: string; title: string; amount: number }[] =
+const MONTHLY_EXPENSES: { item: string; quantity: number; amount?: number }[] =
   [
-    { category: 'Rent', title: 'Shop rent', amount: 18000 },
-    { category: 'Staff Cost', title: 'Staff salary', amount: 24000 },
-    { category: 'Utilities', title: 'Electricity bill', amount: 4200 },
-    { category: 'Utilities', title: 'Gas bill', amount: 1100 },
+    { item: 'Shop rent', quantity: 1 },
+    { item: 'Staff salary', quantity: 1 },
+    { item: 'Electricity bill', quantity: 1, amount: 4200 },
+    { item: 'Gas bill', quantity: 1 },
   ];
+
+/**
+ * A day's bazar is a handful of items bought together — which is the shape the
+ * expense screen is built around, so the demo shows it rather than one lump
+ * labelled "Bazar".
+ */
+const BAZAR_BASKETS: { item: string; quantity: number }[][] = [
+  [
+    { item: 'Chicken', quantity: 2 },
+    { item: 'Rice', quantity: 10 },
+    { item: 'Vegetables', quantity: 4 },
+  ],
+  [
+    { item: 'Chicken', quantity: 1.5 },
+    { item: 'Soybean oil', quantity: 5 },
+    { item: 'Vegetables', quantity: 3 },
+  ],
+  [
+    { item: 'Bread', quantity: 4 },
+    { item: '7up', quantity: 6 },
+    { item: 'Biscuit', quantity: 3 },
+  ],
+];
 
 /** Today's calendar date in the business timezone, as YYYY-MM-DD. */
 function today(): string {
@@ -139,6 +197,16 @@ async function main() {
     console.log(`Business timezone: ${APP_TIME_ZONE}`);
 
     // --- start from a known state ---------------------------------------
+    /**
+     * Items go first, in their own statement. `expenses.item_id` is ON DELETE
+     * SET NULL, and deleting a parent and its children inside one
+     * data-modifying CTE makes the FK trigger update rows that the same
+     * command is deleting — so this one stays outside the batch below.
+     */
+    await dataSource.query('delete from expense_items where shop_id = $1', [
+      shopId,
+    ]);
+
     const wiped: { orders: string; expenses: string; menu_items: string }[] =
       await dataSource.query(
         `with removed_items as (
@@ -229,6 +297,32 @@ async function main() {
         [id, shopId, name],
       );
       expenseCategoryId.set(name, id);
+    }
+
+    // --- expense items ----------------------------------------------------
+    // Keyed by name: names are unique per category, and the demo does not
+    // reuse one name across two categories.
+    const expenseItem = new Map<
+      string,
+      { id: string; categoryId: string; unit: string; price: number | null }
+    >();
+    for (const item of EXPENSE_ITEMS) {
+      const id = randomUUID();
+      const categoryId = expenseCategoryId.get(item.category);
+      if (!categoryId) continue;
+      await dataSource.query(
+        `insert into expense_items
+           (id, shop_id, category_id, name, unit, default_unit_price,
+            is_active, created_at, updated_at)
+         values ($1,$2,$3,$4,$5,$6, true, now(), now())`,
+        [id, shopId, categoryId, item.name, item.unit, item.price],
+      );
+      expenseItem.set(item.name, {
+        id,
+        categoryId,
+        unit: item.unit,
+        price: item.price,
+      });
     }
 
     // --- orders -----------------------------------------------------------
@@ -515,25 +609,40 @@ async function main() {
 
     // --- expenses ----------------------------------------------------------
     let expenseCount = 0;
+    /**
+     * Records a purchase the way the app does: the title, category and unit
+     * are copied off the item, and the amount is quantity x unit price unless
+     * one is passed for an item with no fixed price.
+     */
     const addExpense = async (
-      category: string,
-      title: string,
-      amount: number,
+      itemName: string,
+      quantity: number,
       date: string,
+      amount?: number,
       note?: string,
     ) => {
+      const item = expenseItem.get(itemName);
+      if (!item) throw new Error(`Unknown demo expense item: ${itemName}`);
+      const unitPrice = item.price;
+      const total = amount ?? (unitPrice === null ? 0 : quantity * unitPrice);
+
       await dataSource.query(
         `insert into expenses
-           (id, shop_id, title, amount, expense_date, note, category_id, created_at, updated_at)
-         values ($1,$2,$3,$4,$5,$6,$7, now(), now())`,
+           (id, shop_id, title, item_id, category_id, quantity, unit,
+            unit_price, amount, expense_date, note, created_at, updated_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now(), now())`,
         [
           randomUUID(),
           shopId,
-          title,
-          amount,
+          itemName,
+          item.id,
+          item.categoryId,
+          quantity,
+          item.unit,
+          unitPrice,
+          total,
           date,
           note ?? null,
-          expenseCategoryId.get(category) ?? null,
         ],
       );
       expenseCount += 1;
@@ -549,27 +658,30 @@ async function main() {
 
       for (const fixed of MONTHLY_EXPENSES) {
         await addExpense(
-          fixed.category,
-          fixed.title,
-          fixed.amount,
+          fixed.item,
+          fixed.quantity,
           `${yyyy}-${mm}-02`,
+          fixed.amount,
         );
       }
-      // Bazar every four days, a little uneven.
+      // Bazar every four days, a different basket each time.
+      let basket = 0;
       for (let day = 3; day <= 27; day += 4) {
-        await addExpense(
-          'Bazar Cost',
-          'Bazar',
-          2200 + ((day * 37 + monthsBack * 11) % 900),
-          `${yyyy}-${mm}-${String(day).padStart(2, '0')}`,
-        );
+        for (const line of BAZAR_BASKETS[basket % BAZAR_BASKETS.length]) {
+          await addExpense(
+            line.item,
+            line.quantity,
+            `${yyyy}-${mm}-${String(day).padStart(2, '0')}`,
+          );
+        }
+        basket += 1;
       }
       if (monthsBack % 3 === 0) {
         await addExpense(
-          'Miscellaneous',
           'Equipment repair',
-          1500 + monthsBack * 120,
+          1,
           `${yyyy}-${mm}-18`,
+          1500 + monthsBack * 120,
           'Fridge servicing',
         );
       }

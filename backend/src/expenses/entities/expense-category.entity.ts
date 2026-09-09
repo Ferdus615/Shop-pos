@@ -9,6 +9,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Shop } from '../../shops/entities/shop.entity';
+import { ExpenseItem } from './expense-item.entity';
 import { Expense } from './expense.entity';
 
 // Category names only have to be unique inside one shop.
@@ -31,6 +32,10 @@ export class ExpenseCategory {
 
   @OneToMany(() => Expense, (expense) => expense.category)
   expenses: Expense[];
+
+  /** The catalogue of things bought under this category. */
+  @OneToMany(() => ExpenseItem, (item) => item.category)
+  items: ExpenseItem[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
