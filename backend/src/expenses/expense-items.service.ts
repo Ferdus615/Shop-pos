@@ -44,6 +44,17 @@ export class ExpenseItemsService {
     }
   }
 
+  /** The row a name would collide with, if there is one. */
+  private findByName(
+    name: string,
+    categoryId: string,
+    shopId: string,
+  ): Promise<ExpenseItem | null> {
+    return this.itemsRepository.findOne({
+      where: { name, categoryId, shopId },
+    });
+  }
+
   /** Item names collide only within the same category of the same shop. */
   private async assertNameFree(
     name: string,
@@ -51,10 +62,7 @@ export class ExpenseItemsService {
     shopId: string,
     exceptId?: string,
   ): Promise<void> {
-    const clash = await this.itemsRepository.findOne({
-      where: { name, categoryId, shopId },
-      select: { id: true },
-    });
+    const clash = await this.findByName(name, categoryId, shopId);
     if (clash && clash.id !== exceptId) {
       throw new ConflictException(
         'An item with this name already exists in that category',
@@ -62,13 +70,34 @@ export class ExpenseItemsService {
     }
   }
 
+  /**
+   * Adding a name that a retired item already holds revives that item rather
+   * than failing: the row is still there only to keep its past entries
+   * labelled, so the owner re-adding "তেল" means the same item is back, with
+   * whatever unit and price they just typed. A live item of that name is still
+   * a conflict.
+   */
   async create(
     dto: CreateExpenseItemDto,
     shopId: string,
   ): Promise<ExpenseItem> {
     const name = dto.name.trim();
     await this.assertCategoryExists(dto.categoryId, shopId);
-    await this.assertNameFree(name, dto.categoryId, shopId);
+
+    const existing = await this.findByName(name, dto.categoryId, shopId);
+    if (existing?.isActive) {
+      throw new ConflictException(
+        'An item with this name already exists in that category',
+      );
+    }
+    if (existing) {
+      existing.unit = dto.unit?.trim() || existing.unit;
+      if (dto.defaultUnitPrice !== undefined) {
+        existing.defaultUnitPrice = dto.defaultUnitPrice ?? null;
+      }
+      existing.isActive = dto.isActive ?? true;
+      return this.itemsRepository.save(existing);
+    }
 
     return this.itemsRepository.save(
       this.itemsRepository.create({
