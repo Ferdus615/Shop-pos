@@ -430,6 +430,12 @@ entry — leave it `null` when the price varies every time. A name has to be uni
 within its category (`409` otherwise); `categoryId` is required, since the
 category is how the item list is browsed.
 
+> Posting a name held by a **retired** item in that category revives that item —
+> same id, its history intact — with whatever `unit` and `defaultUnitPrice` the
+> request carries (each falls back to what the retired row already had). Only a
+> live item of that name is a `409`. Setting `isActive: true` via `PATCH` does
+> the same thing when the id is already known.
+
 > `DELETE` returns `200` with `{ "deleted": boolean, "item"?: ExpenseItem }`
 > rather than `204`. An item with purchases behind it is **retired**
 > (`isActive: false` — hidden from the pick lists, history untouched) instead of
